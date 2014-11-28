@@ -1,0 +1,118 @@
+<html>
+<head>
+    <script type="text/javascript" src="jquery-2.1.1.min.js"></script>
+    <script type="text/javascript" src="underscore-min.js"></script>
+    <script type="text/javascript" src="utils.js"></script>
+    <script type="text/javascript" src="editor.js"></script>
+    <script type="text/javascript" src="analyzer.js"></script>
+    <script type="text/javascript" src="tools.js"></script>
+    <script type="text/javascript" src="templates/png.js"></script>
+    <style>
+        div.hex {
+            font:14px "Lucida Console", "Courier New", Courier, monospace;
+            white-space: pre;
+            /*position: relative;*/
+        }
+        div.hex .cursor {
+            display:inline-block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 1em;
+            font-weight: bold;
+        }
+        div.hex .cursor .cursorinner {
+            border-left: 2px solid black;
+        }
+        div.hex .cursor.nibble .cursorinner {
+            margin-left: 0.55em;
+        }
+        div.hex .hexrow {
+            line-height: 1.2em;
+
+        }
+        div.hex .hexrow .head {
+            color:blue;cursor:default;
+        }
+        div.hex .hexrow .hexcolumn {
+            margin-left: 1em;
+            margin-right: 1em;
+        }
+        div.hex .hexrow .charcolumn {
+
+        }
+        div.hex .hexrow .textcolumn {
+            overflow: hidden;
+            height: 1em;
+            display: inline-block;
+            color: #333;
+            padding-left: 1em;
+        }
+        div.hex .hexrow .hexcolumn .byte {
+            color: black;
+            padding-right: 2px;
+        }
+        div.hex .hexrow .charcolumn .char {
+            color: black;
+        }
+        div.hex .hexrow .charcolumn .char.over, div.hex .hexrow .hexcolumn .byte.over {
+            background: #eee;
+        }
+        div.hex .hexrow .hexcolumn .byte.selected, div.hex .hexrow .charcolumn .char.selected {
+            color: white;
+            background-color: cornflowerblue;
+        }
+        #hexoutput {
+            font:12px "Lucida Console", "Courier New", Courier, monospace;
+            white-space: pre;
+        }
+        .treeelement {
+            cursor: default;
+        }
+        .treeelement .treetitle {
+            color: #000;
+        }
+        .treeelement .treetitle.expanded {
+        }
+        .treeelement .treetitle.treehaschildren.expanded::before {
+            content: "+ ";
+            color: #777;
+        }
+        .treeelement .treetitle.treehaschildren.unexpanded::before {
+            content: "- ";
+            color: #777;
+        }
+        .treeelement .treetitle:hover {
+            color: #00f;
+            background: #f7f7f7;
+        }
+        .treeelement .treetitle:hover + .treechildren {
+            background: #f7f7f7;
+        }
+        .treeelement .treechildren {
+            padding-left: 24px;
+            border-left: 1px dashed #aaa;
+            display: none;
+        }
+        .treeelement .treechildren.expanded {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="hextools"></div>
+    <div>
+        <div style="display:inline-block;height:600px;width:320px;overflow:auto;">
+            <div id="hexoutput"></div>
+        </div>
+        <div style="display:inline-block;height:400px;">
+            <div id="hexcontainer" class="hex"></div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        var editor = HexEditor.convert(document.getElementById("hexcontainer"));
+        new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);
+    </script>
+
+</body>
+</html>
