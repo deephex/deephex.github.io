@@ -83,13 +83,25 @@ class AnalyzerMapper {
         this.offset += count;
         return value;
     }
-    subs(name:string, count:number) {
+    strz(name:string, encoding:string = 'ascii') {
+        var count = 0;
+        for (var n = 0; n < this.available; n++) {
+            count++;
+            if (this.data.getUint8(this.offset + n) == 0) break;
+        }
+        return this.str(name, count, encoding);
+    }
+    subs(name:string, count:number, callback?: (mapper:AnalyzerMapper) => void) {
         var value = <ArrayBuffer>((<any>this.data.buffer).slice(this.offset, this.offset + count));
         var subsnode = new AnalyzerMapperNode(name, this.node);
         var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
         mapper.little = this.little;
         this.node.elements.push(subsnode);
         this.offset += count;
+        if (callback) {
+            var result = callback(mapper);
+            mapper.node.value = result;
+        }
         return mapper;
     }
 
@@ -117,7 +129,11 @@ class AnalyzerMapperRenderer {
     html(element:AnalyzerMapperElement) {
         var e = $('<div class="treeelement">');
         var title = $('<div class="treetitle expanded">');
-        e.append(title.text(element.type + ' ' + element.name + ' : ' + element.value));
+        var type = $('<span class="treetitletype">').text(element.type);
+        var name = $('<span class="treetitlename">').text(element.name);
+        var value = $('<span class="treetitlevalue">').text(element.value);
+        title.append(type, name, value);
+        e.append(title);
 
         title.mouseover(e => {
             this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
@@ -126,7 +142,7 @@ class AnalyzerMapperRenderer {
         if (element instanceof AnalyzerMapperNode) {
             var node = (<AnalyzerMapperNode>element);
             if (node.elements.length > 0) {
-                title.addClass('treehaschildren')
+                title.addClass('treehaschildren');
                 var childs = $('<div class="treechildren expanded">');
                 node.elements.forEach(e => {
                     childs.append(this.html(e));

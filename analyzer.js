@@ -143,13 +143,27 @@ var AnalyzerMapper = (function () {
         this.offset += count;
         return value;
     };
-    AnalyzerMapper.prototype.subs = function (name, count) {
+    AnalyzerMapper.prototype.strz = function (name, encoding) {
+        if (encoding === void 0) { encoding = 'ascii'; }
+        var count = 0;
+        for (var n = 0; n < this.available; n++) {
+            count++;
+            if (this.data.getUint8(this.offset + n) == 0)
+                break;
+        }
+        return this.str(name, count, encoding);
+    };
+    AnalyzerMapper.prototype.subs = function (name, count, callback) {
         var value = (this.data.buffer.slice(this.offset, this.offset + count));
         var subsnode = new AnalyzerMapperNode(name, this.node);
         var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
         mapper.little = this.little;
         this.node.elements.push(subsnode);
         this.offset += count;
+        if (callback) {
+            var result = callback(mapper);
+            mapper.node.value = result;
+        }
         return mapper;
     };
     AnalyzerMapper.prototype.struct = function (name, callback) {
@@ -180,7 +194,11 @@ var AnalyzerMapperRenderer = (function () {
         var _this = this;
         var e = $('<div class="treeelement">');
         var title = $('<div class="treetitle expanded">');
-        e.append(title.text(element.type + ' ' + element.name + ' : ' + element.value));
+        var type = $('<span class="treetitletype">').text(element.type);
+        var name = $('<span class="treetitlename">').text(element.name);
+        var value = $('<span class="treetitlevalue">').text(element.value);
+        title.append(type, name, value);
+        e.append(title);
         title.mouseover(function (e) {
             _this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
         });

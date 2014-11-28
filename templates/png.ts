@@ -12,18 +12,24 @@ AnalyzerMapperPlugins.register('PNG', (m:AnalyzerMapper) => {
         m.struct('chunk', () => {
             var size = m.u32('size');
             var type = m.str('type', 4);
-            var mcontent = m.subs('content', size);
-            switch (type) {
-                case 'IHDR':
-                    mcontent.u32('size');
-                    mcontent.u32('height');
-                    mcontent.u8('bits');
-                    mcontent.u8('color_type');
-                    mcontent.u8('compression');
-                    mcontent.u8('filter');
-                    mcontent.u8('interlace');
-                    break;
-            }
+            m.subs('content', size, m => {
+                switch (type) {
+                    case 'IHDR':
+                        var width = m.u32('width');
+                        var height = m.u32('height');
+                        m.u8('bits');
+                        m.u8('color_type');
+                        m.u8('compression');
+                        m.u8('filter');
+                        m.u8('interlace');
+                        return width + 'x' + height;
+                        break;
+                    case 'tEXt':
+                        m.strz('key');
+                        m.strz('value');
+                        break;
+                }
+            });
             m.u32('crc');
             return 'type:' + type + ',size:' + size;
         });

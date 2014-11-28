@@ -303,7 +303,7 @@ class HexEditor {
     onCellMove = new Signal<HexCell>();
     onCellUp = new Signal<HexCell>();
     onSelectionChanged = new Signal();
-    source:HexSource = new ArrayHexSource(new Uint8Array(1024));
+    private _source:HexSource = new ArrayHexSource(new Uint8Array(1024));
     private _encoder:Encoding = new TextDecoderEncoding('utf-8');
     onMove = new Signal();
 
@@ -316,8 +316,18 @@ class HexEditor {
         this.source = new ArrayHexSource(data);
     }
 
+    get source() { return this._source; }
+    set source(value:HexSource) {
+        this._source = value;
+        value.readAsync(0, value.length).then((data) => {
+            for (var n = 0; n < data.length; n++) {
+                this.setByteAt(n, data[n]);
+            }
+        });
+    }
+
     getDataAsync() {
-        return this.source.readAsync(0, this.source.length);
+        return this._source.readAsync(0, this.source.length);
     }
 
     get length() { return this.source.length; }

@@ -368,7 +368,7 @@ var HexEditor = (function () {
         this.onCellMove = new Signal();
         this.onCellUp = new Signal();
         this.onSelectionChanged = new Signal();
-        this.source = new ArrayHexSource(new Uint8Array(1024));
+        this._source = new ArrayHexSource(new Uint8Array(1024));
         this._encoder = new TextDecoderEncoding('utf-8');
         this.onMove = new Signal();
         this.columns = 16;
@@ -524,8 +524,24 @@ var HexEditor = (function () {
     HexEditor.prototype.setData = function (data) {
         this.source = new ArrayHexSource(data);
     };
+    Object.defineProperty(HexEditor.prototype, "source", {
+        get: function () {
+            return this._source;
+        },
+        set: function (value) {
+            var _this = this;
+            this._source = value;
+            value.readAsync(0, value.length).then(function (data) {
+                for (var n = 0; n < data.length; n++) {
+                    _this.setByteAt(n, data[n]);
+                }
+            });
+        },
+        enumerable: true,
+        configurable: true
+    });
     HexEditor.prototype.getDataAsync = function () {
-        return this.source.readAsync(0, this.source.length);
+        return this._source.readAsync(0, this.source.length);
     };
     Object.defineProperty(HexEditor.prototype, "length", {
         get: function () {

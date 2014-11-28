@@ -72,7 +72,25 @@
         .treeelement .treetitle {
             color: #000;
         }
+        .treeelement .treetitle .treetitletype {
+            color: purple;
+            padding-right: 1em;
+        }
+        .treeelement .treetitle .treetitlename {
+            color: black;
+        }
+        .treeelement .treetitle .treetitlevalue {
+            padding-left: 1em;
+            color: green;
+        }
+        .treeelement .treetitle .treetitlevalue::before {
+            content: ': ';
+            color: black;
+        }
         .treeelement .treetitle.expanded {
+        }
+        .treeelement .treetitle.treehaschildren {
+            font-weight: bold;
         }
         .treeelement .treetitle.treehaschildren.expanded::before {
             content: "+ ";
@@ -91,7 +109,7 @@
         }
         .treeelement .treechildren {
             padding-left: 24px;
-            border-left: 1px dashed #aaa;
+            border-left: 1px dashed #ddd;
             display: none;
         }
         .treeelement .treechildren.expanded {
