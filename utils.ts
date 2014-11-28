@@ -1,3 +1,5 @@
+/// <reference path="./underscore.d.ts" />
+/// <reference path="./es6-promise.d.ts" />
 
 class Signal<T> {
     private handlers:{ (value?:T): void; }[] = [];
@@ -58,6 +60,23 @@ class CType {
     }
 }
 
+class HexRgb {
+    constructor(public red:number, public green:number, public blue:number) {
+    }
+
+    toHtml() {
+        return '<span class="hexrgbsample" style="background:rgba(' + this.red + ', ' + this.green + ', ' + this.blue + ', 1.0);"></span> RGB(' + this.red + ', ' + this.green + ', ' + this.blue + ')';
+    }
+}
+
+interface NumberDictionary<T> {
+    [name: number]: T;
+}
+
+interface StringDictionary<T> {
+    [name: string]: T;
+}
+
 function download(url:string, done: (data: Uint8Array) => void) {
     var xhr = new XMLHttpRequest();
 
@@ -88,4 +107,18 @@ function ror16(value: number, count:number) {
 function ror8(value: number, count:number) {
     count = unsigned_mod(count, 8);
     return ((value >>> count) & 0xFF) | ((value << (8 - count)) & 0xFF);
+}
+
+function htmlspecialchars(s:string) {
+    s = String(s);
+    return s.replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function waitAsync(time:number) {
+    return new Promise((resolve, reject) => {
+        setTimeout(resolve, time);
+    });
 }

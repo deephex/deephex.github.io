@@ -7,12 +7,14 @@ class HexCell {
     elementHex:HTMLElement;
     elementChar:HTMLElement;
     private _value = 0;
-    offset = 0;
+    viewoffset = 0;
+
+    get globaloffset() { return this.row.editor.offset + this.viewoffset; }
 
     constructor(public row:HexRow, public column:number) {
         this.elementHex = $('<span class="byte">00</span>').get(0);
         this.elementChar = $('<span class="char">.</span>').get(0);
-        this.offset = this.row.row * this.row.editor.columns + this.column;
+        this.viewoffset = this.row.row * this.row.editor.columns + this.column;
         $(this.elementHex).click((e) => {
             this.row.editor.onCellClick.dispatch(this);
         });
@@ -161,16 +163,25 @@ class HexCursor {
             this.moveBy(+1, 0);
         }
     }
-    moveUp() { this.moveBy(0, -1); }
-    moveDown() { this.moveBy(0, +1); }
-
-    get isInFirstColumn() {
-        return this.column == 0;
+    moveUp() {
+        if (this.isInFirstRow) {
+            this.editor.moveViewBy(-this.editor.columns);
+        } else {
+            this.moveBy(0, -1);
+        }
+    }
+    moveDown() {
+        if (this.isInLastRow) {
+            this.editor.moveViewBy(+this.editor.columns);
+        } else {
+            this.moveBy(0, +1);
+        }
     }
 
-    get isInLastColumn() {
-        return this.column == this.editor.columns - 1;
-    }
+    get isInFirstColumn() { return this.column == 0; }
+    get isInFirstRow() { return this.row == 0; }
+    get isInLastColumn() { return this.column == this.editor.columns - 1; }
+    get isInLastRow() { return this.row == this.editor.rows.length - 1; }
 
     moveNext() {
         if (this.isInLastColumn) {
@@ -184,20 +195,13 @@ class HexCursor {
         this.moveToHex(this.editor.getCell(column, row));
     }
 
-    get column() {
-        return this.cell.column;
-    }
-
-    get row() {
-        return this.cell.row.row;
-    }
-
-    get offset() {
-        return this.cell.offset;
-    }
+    get column() { return this.cell.column; }
+    get row() { return this.cell.row.row; }
+    get viewoffset() { return this.cell.viewoffset; }
+    get globaloffset() { return this.cell.globaloffset; }
 
     get selection2() {
-        return this.selection.isEmpty ? new HexSelection(this.editor, this.offset, this.offset + 1) : this.selection;
+        return this.selection.isEmpty ? new HexSelection(this.editor, this.globaloffset, this.globaloffset + 1) : this.selection;
     }
 
     moveToHex(cell:HexCell) {
@@ -219,6 +223,7 @@ class HexCursor {
             $(oldcell.elementChar).removeClass('over');
         }
         $(this.element).offset($(newcell.elementHex).position());
+
         if (oldcell != newcell) {
             $(newcell.elementHex).addClass('over');
             $(newcell.elementChar).addClass('over');
@@ -237,15 +242,8 @@ class HexSelection {
         this.editor.onSelectionChanged.dispatch();
     }
 
-    none() {
-        this.start = 0;
-        this.end = 0;
-    }
-
-    all() {
-        this.start = 0;
-        this.end = this.editor.length;
-    }
+    none() { this.start = 0; this.end = 0; }
+    all() { this.start = 0; this.end = this.editor.length; }
 
     get start() { return this._start; }
     get end() { return this._end; }
@@ -261,9 +259,7 @@ class HexSelection {
     get low() { return Math.min(this.start, this.end); }
     get high() { return Math.max(this.start, this.end); }
 
-    contains(offset: number) {
-        return offset >= this.low && offset < this.high;
-    }
+    contains(offset: number) { return offset >= this.low && offset < this.high; }
 
     iterateByteOffsets(callback: (offset: number) => void) {
         var low = this.low;
@@ -290,6 +286,7 @@ class ArrayHexSource implements HexSource {
     readAsync(offset:number, size:number) {
         var out = new Uint8Array(size);
         for (var n = 0; n < size; n++) out[n] = this.data[offset + n];
+        //return waitAsync(3000).then(() => { return out; });
         return Promise.resolve(out);
     }
 }
@@ -319,11 +316,51 @@ class HexEditor {
     get source() { return this._source; }
     set source(value:HexSource) {
         this._source = value;
-        value.readAsync(0, value.length).then((data) => {
+        this.offset = 0;
+        this.updateCellsAsync();
+    }
+
+    offset = 0;
+
+    get visiblerange() {
+        return new HexSelection(this, this.offset, this.offset + this.columns * this.rows.length);
+    }
+
+    ensureViewVisibleRange(globaloffset:number) {
+        if (!this.visiblerange.contains(globaloffset)) {
+            this.moveViewTo(Math.floor(globaloffset / this.columns) * this.columns);
+        }
+    }
+
+    moveViewBy(doffset:number) {
+        this.moveViewTo(this.offset + doffset);
+    }
+
+    moveViewTo(offset:number) {
+        offset = Math.max(0, offset);
+        this.offset = offset;
+        this.updateCellsAsync();
+    }
+
+    updateCellsAsync() {
+        var source = this._source;
+        return source.readAsync(this.offset, source.length).then((data) => {
+            this.rows.forEach((row, index) => {
+                row.head.value = this.offset + index * 16;
+            });
+
             for (var n = 0; n < data.length; n++) {
-                this.setByteAt(n, data[n]);
+                this.setByteAt(this.localToGlobal(n), data[n]);
             }
         });
+    }
+
+    localToGlobal(localoffset:number) {
+        return this.offset + localoffset;
+    }
+
+    globalToLocal(globaloffset:number) {
+        return globaloffset - this.offset;
     }
 
     getDataAsync() {
@@ -332,25 +369,20 @@ class HexEditor {
 
     get length() { return this.source.length; }
 
-    getCell2(offset:number) {
+    getCell2(globaloffset:number) {
+        var offset = globaloffset - this.offset;
         return this.getCell(
             Math.floor(offset % this.columns),
             Math.floor(offset / this.columns)
         );
     }
 
-    getByteAt(offset:number) {
-        return this.getCell2(offset).value;
+    getByteAt(globaloffset:number) {
+        return this.getCell2(globaloffset).value;
     }
 
-    setByteAt(offset:number, value:number) {
-        this.getCell2(offset).value = value;
-    }
-
-    setPage(offset:number) {
-        this.rows.forEach((row, index) => {
-            row.head.value = offset + index * 16;
-        });
+    setByteAt(globaloffset:number, value:number) {
+        this.getCell2(globaloffset).value = value;
     }
 
     update() {
@@ -366,7 +398,7 @@ class HexEditor {
         var selection = cursor.selection;
         this.rows.forEach(row => {
             row.cells.forEach(cell => {
-                cell.selected = selection ? selection.contains(cell.offset) : false;
+                cell.selected = selection ? selection.contains(cell.globaloffset) : false;
             });
         })
     }
@@ -404,14 +436,14 @@ class HexEditor {
         });
 
         this.onCellDown.add((e) => {
-            this.cursor.selection.start = e.offset;
-            this.cursor.selection.end = e.offset;
+            this.cursor.selection.start = e.globaloffset;
+            this.cursor.selection.end = e.globaloffset;
             this.updateSelection();
             this.onMove.dispatch();
         });
 
         this.onCellMove.add((e) => {
-            this.cursor.selection.end = e.offset;
+            this.cursor.selection.end = e.globaloffset;
             this.cursor.moveToHex(e);
             this.updateSelection();
             this.onMove.dispatch();
@@ -426,6 +458,17 @@ class HexEditor {
         var selecting = false;
         var startedSelection = false;
         var pressingCmd = false;
+
+        var deltaWheel = 0;
+        $(element).on('wheel', (e) => {
+            var ee = <any>e.originalEvent;
+            deltaWheel += ee.deltaY;
+            var deltaWheelInt = Math.floor(deltaWheel / 10);
+            if (Math.abs(deltaWheelInt) >= 1) {
+                this.moveViewBy(deltaWheelInt * this.columns);
+                deltaWheel = 0;
+            }
+        });
 
         $(document).keydown(e => {
             //console.log(e);
@@ -442,7 +485,7 @@ class HexEditor {
                 case 39:
                 case 40: // LEFT, TOP, RIGHT, BOTTOM
                     if (startedSelection) {
-                        this.cursor.selection.start = this.cursor.offset;
+                        this.cursor.selection.start = this.cursor.globaloffset;
                         startedSelection = false;
                     }
                     switch (e.keyCode) {
@@ -452,7 +495,7 @@ class HexEditor {
                         case 40: this.cursor.moveDown(); break;
                     }
                     if (selecting) {
-                        this.cursor.selection.end = this.cursor.offset;
+                        this.cursor.selection.end = this.cursor.globaloffset;
                     }
                     if (!selecting) this.cursor.selection.none();
                     this.updateSelection();
@@ -523,8 +566,6 @@ class HexEditor {
                 }
             });
         });
-
-        this.setPage(0);
     }
 
     private _dirty = false;

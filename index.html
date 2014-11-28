@@ -32,14 +32,20 @@
 
         }
         div.hex .hexrow .head {
-            color:blue;cursor:default;
+            color:blue;
+            cursor:default;
+            padding-right: 0.5em;
         }
         div.hex .hexrow .hexcolumn {
-            margin-left: 1em;
-            margin-right: 1em;
+            padding-left: 0.5em;
+            padding-right: 0.5em;
+            border-left: 1px dashed #ccc;
+            border-right: 1px dashed #ccc;
         }
         div.hex .hexrow .charcolumn {
-
+            padding-left: 0.5em;
+            padding-right: 0.5em;
+            border-right: 1px dashed #ccc;
         }
         div.hex .hexrow .textcolumn {
             overflow: hidden;
@@ -114,6 +120,12 @@
         }
         .treeelement .treechildren.expanded {
             display: block;
+        }
+        .hexrgbsample {
+            width: 1em;
+            height: 0.7em;
+            border: 1px solid black;
+            display: inline-block;
         }
     </style>
 </head>

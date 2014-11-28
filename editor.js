@@ -8,11 +8,11 @@ var HexCell = (function () {
         this.row = row;
         this.column = column;
         this._value = 0;
-        this.offset = 0;
+        this.viewoffset = 0;
         this._selected = false;
         this.elementHex = $('<span class="byte">00</span>').get(0);
         this.elementChar = $('<span class="char">.</span>').get(0);
-        this.offset = this.row.row * this.row.editor.columns + this.column;
+        this.viewoffset = this.row.row * this.row.editor.columns + this.column;
         $(this.elementHex).click(function (e) {
             _this.row.editor.onCellClick.dispatch(_this);
         });
@@ -35,6 +35,13 @@ var HexCell = (function () {
             }
         });
     }
+    Object.defineProperty(HexCell.prototype, "globaloffset", {
+        get: function () {
+            return this.row.editor.offset + this.viewoffset;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(HexCell.prototype, "value", {
         get: function () {
             return this._value;
@@ -163,10 +170,20 @@ var HexCursor = (function () {
         }
     };
     HexCursor.prototype.moveUp = function () {
-        this.moveBy(0, -1);
+        if (this.isInFirstRow) {
+            this.editor.moveViewBy(-this.editor.columns);
+        }
+        else {
+            this.moveBy(0, -1);
+        }
     };
     HexCursor.prototype.moveDown = function () {
-        this.moveBy(0, +1);
+        if (this.isInLastRow) {
+            this.editor.moveViewBy(+this.editor.columns);
+        }
+        else {
+            this.moveBy(0, +1);
+        }
     };
     Object.defineProperty(HexCursor.prototype, "isInFirstColumn", {
         get: function () {
@@ -175,9 +192,23 @@ var HexCursor = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(HexCursor.prototype, "isInFirstRow", {
+        get: function () {
+            return this.row == 0;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(HexCursor.prototype, "isInLastColumn", {
         get: function () {
             return this.column == this.editor.columns - 1;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCursor.prototype, "isInLastRow", {
+        get: function () {
+            return this.row == this.editor.rows.length - 1;
         },
         enumerable: true,
         configurable: true
@@ -207,16 +238,23 @@ var HexCursor = (function () {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(HexCursor.prototype, "offset", {
+    Object.defineProperty(HexCursor.prototype, "viewoffset", {
         get: function () {
-            return this.cell.offset;
+            return this.cell.viewoffset;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCursor.prototype, "globaloffset", {
+        get: function () {
+            return this.cell.globaloffset;
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(HexCursor.prototype, "selection2", {
         get: function () {
-            return this.selection.isEmpty ? new HexSelection(this.editor, this.offset, this.offset + 1) : this.selection;
+            return this.selection.isEmpty ? new HexSelection(this.editor, this.globaloffset, this.globaloffset + 1) : this.selection;
         },
         enumerable: true,
         configurable: true
@@ -354,6 +392,7 @@ var ArrayHexSource = (function () {
         var out = new Uint8Array(size);
         for (var n = 0; n < size; n++)
             out[n] = this.data[offset + n];
+        //return waitAsync(3000).then(() => { return out; });
         return Promise.resolve(out);
     };
     return ArrayHexSource;
@@ -371,6 +410,7 @@ var HexEditor = (function () {
         this._source = new ArrayHexSource(new Uint8Array(1024));
         this._encoder = new TextDecoderEncoding('utf-8');
         this.onMove = new Signal();
+        this.offset = 0;
         this.columns = 16;
         this._dirty = false;
         this._dirtyExec = -1;
@@ -391,13 +431,13 @@ var HexEditor = (function () {
             _this.cursor.moveToHex(e);
         });
         this.onCellDown.add(function (e) {
-            _this.cursor.selection.start = e.offset;
-            _this.cursor.selection.end = e.offset;
+            _this.cursor.selection.start = e.globaloffset;
+            _this.cursor.selection.end = e.globaloffset;
             _this.updateSelection();
             _this.onMove.dispatch();
         });
         this.onCellMove.add(function (e) {
-            _this.cursor.selection.end = e.offset;
+            _this.cursor.selection.end = e.globaloffset;
             _this.cursor.moveToHex(e);
             _this.updateSelection();
             _this.onMove.dispatch();
@@ -409,6 +449,16 @@ var HexEditor = (function () {
         var selecting = false;
         var startedSelection = false;
         var pressingCmd = false;
+        var deltaWheel = 0;
+        $(element).on('wheel', function (e) {
+            var ee = e.originalEvent;
+            deltaWheel += ee.deltaY;
+            var deltaWheelInt = Math.floor(deltaWheel / 10);
+            if (Math.abs(deltaWheelInt) >= 1) {
+                _this.moveViewBy(deltaWheelInt * _this.columns);
+                deltaWheel = 0;
+            }
+        });
         $(document).keydown(function (e) {
             switch (e.keyCode) {
                 case 9:
@@ -427,7 +477,7 @@ var HexEditor = (function () {
                 case 39:
                 case 40:
                     if (startedSelection) {
-                        _this.cursor.selection.start = _this.cursor.offset;
+                        _this.cursor.selection.start = _this.cursor.globaloffset;
                         startedSelection = false;
                     }
                     switch (e.keyCode) {
@@ -445,7 +495,7 @@ var HexEditor = (function () {
                             break;
                     }
                     if (selecting) {
-                        _this.cursor.selection.end = _this.cursor.offset;
+                        _this.cursor.selection.end = _this.cursor.globaloffset;
                     }
                     if (!selecting)
                         _this.cursor.selection.none();
@@ -515,7 +565,6 @@ var HexEditor = (function () {
                 }
             });
         });
-        this.setPage(0);
     }
     HexEditor.prototype.getCell = function (column, row) {
         //console.log(column, row);
@@ -529,17 +578,51 @@ var HexEditor = (function () {
             return this._source;
         },
         set: function (value) {
-            var _this = this;
             this._source = value;
-            value.readAsync(0, value.length).then(function (data) {
-                for (var n = 0; n < data.length; n++) {
-                    _this.setByteAt(n, data[n]);
-                }
-            });
+            this.offset = 0;
+            this.updateCellsAsync();
         },
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(HexEditor.prototype, "visiblerange", {
+        get: function () {
+            return new HexSelection(this, this.offset, this.offset + this.columns * this.rows.length);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    HexEditor.prototype.ensureViewVisibleRange = function (globaloffset) {
+        if (!this.visiblerange.contains(globaloffset)) {
+            this.moveViewTo(Math.floor(globaloffset / this.columns) * this.columns);
+        }
+    };
+    HexEditor.prototype.moveViewBy = function (doffset) {
+        this.moveViewTo(this.offset + doffset);
+    };
+    HexEditor.prototype.moveViewTo = function (offset) {
+        offset = Math.max(0, offset);
+        this.offset = offset;
+        this.updateCellsAsync();
+    };
+    HexEditor.prototype.updateCellsAsync = function () {
+        var _this = this;
+        var source = this._source;
+        return source.readAsync(this.offset, source.length).then(function (data) {
+            _this.rows.forEach(function (row, index) {
+                row.head.value = _this.offset + index * 16;
+            });
+            for (var n = 0; n < data.length; n++) {
+                _this.setByteAt(_this.localToGlobal(n), data[n]);
+            }
+        });
+    };
+    HexEditor.prototype.localToGlobal = function (localoffset) {
+        return this.offset + localoffset;
+    };
+    HexEditor.prototype.globalToLocal = function (globaloffset) {
+        return globaloffset - this.offset;
+    };
     HexEditor.prototype.getDataAsync = function () {
         return this._source.readAsync(0, this.source.length);
     };
@@ -550,19 +633,15 @@ var HexEditor = (function () {
         enumerable: true,
         configurable: true
     });
-    HexEditor.prototype.getCell2 = function (offset) {
+    HexEditor.prototype.getCell2 = function (globaloffset) {
+        var offset = globaloffset - this.offset;
         return this.getCell(Math.floor(offset % this.columns), Math.floor(offset / this.columns));
     };
-    HexEditor.prototype.getByteAt = function (offset) {
-        return this.getCell2(offset).value;
+    HexEditor.prototype.getByteAt = function (globaloffset) {
+        return this.getCell2(globaloffset).value;
     };
-    HexEditor.prototype.setByteAt = function (offset, value) {
-        this.getCell2(offset).value = value;
-    };
-    HexEditor.prototype.setPage = function (offset) {
-        this.rows.forEach(function (row, index) {
-            row.head.value = offset + index * 16;
-        });
+    HexEditor.prototype.setByteAt = function (globaloffset, value) {
+        this.getCell2(globaloffset).value = value;
     };
     HexEditor.prototype.update = function () {
         this.cursor.update();
@@ -576,7 +655,7 @@ var HexEditor = (function () {
         var selection = cursor.selection;
         this.rows.forEach(function (row) {
             row.cells.forEach(function (cell) {
-                cell.selected = selection ? selection.contains(cell.offset) : false;
+                cell.selected = selection ? selection.contains(cell.globaloffset) : false;
             });
         });
     };

@@ -48,7 +48,7 @@ class HexTools {
         $(element).append(info);
         editor.onMove.add(() => {
             var cursor = editor.cursor;
-            info.text('column:' + cursor.column + ",cell:" + cursor.row + ',offset:' + cursor.offset + ",selection=" + cursor.selection.length);
+            info.text('column:' + cursor.column + ",cell:" + cursor.row + ',offset:' + cursor.viewoffset + ",selection=" + cursor.selection.length);
         });
         editor.update();
     }
