@@ -34,8 +34,10 @@ var AnalyzerMapperElement = (function () {
     return AnalyzerMapperElement;
 })();
 var HexChunk = (function () {
-    function HexChunk(data) {
+    function HexChunk(data, type) {
+        if (type === void 0) { type = 'autodetect2'; }
         this.data = data;
+        this.type = type;
     }
     HexChunk.prototype.toHtml = function (editor) {
         var _this = this;
@@ -45,9 +47,11 @@ var HexChunk = (function () {
             e.preventDefault();
             //alert(1);
             editor.setData(new Uint8Array(_this.data));
+            AnalyzerMapperPlugins.runAsync(_this.type, editor);
             return false;
         }));
-        item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        item.append('HexChunk[' + this.data.length + '](' + this.type + ')');
         return item;
     };
     return HexChunk;
@@ -154,10 +158,14 @@ var AnalyzerMapperPlugins = (function () {
     };
     AnalyzerMapperPlugins.runAsync = function (name, editor) {
         return editor.getDataAsync().then(function (data) {
+            name = String(name).toLowerCase();
             var mapper = new AnalyzerMapper(new DataView(data.buffer));
             var e;
+            var template = AnalyzerMapperPlugins.templates[name];
             try {
-                AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
+                if (!template)
+                    throw new Error("Can't find template '" + name + "'");
+                template(mapper);
             }
             catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
@@ -308,9 +316,10 @@ var AnalyzerMapper = (function () {
         }
         return mapper;
     };
-    AnalyzerMapper.prototype.chunk = function (name, count, representer) {
+    AnalyzerMapper.prototype.chunk = function (name, count, type, representer) {
+        if (type === void 0) { type = 'autodetect3'; }
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
-        element.value = new HexChunk(this.readBytes(count));
+        element.value = new HexChunk(this.readBytes(count), type);
         this.node.elements.push(element);
         return element;
     };
@@ -352,6 +361,7 @@ var AnalyzerMapperRenderer = (function () {
     }
     AnalyzerMapperRenderer.prototype.html = function (element) {
         var _this = this;
+        var source = this.editor.source;
         var e = $('<div class="treeelement">');
         var title = $('<div class="treetitle">');
         var type = $('<span class="treetitletype">').text(element.type);
@@ -360,6 +370,8 @@ var AnalyzerMapperRenderer = (function () {
         title.append(type, name, value);
         e.append(title);
         title.mouseover(function (e) {
+            if (_this.editor.source != source)
+                return;
             _this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
             _this.editor.ensureViewVisibleRange(element.offset);
         });
@@ -382,8 +394,12 @@ var AnalyzerMapperRenderer = (function () {
                 });
                 e.append(childs);
             }
+            else {
+                title.addClass('treenohaschildren');
+            }
         }
         else {
+            title.addClass('treenohaschildren');
             title.click(function (e) {
                 var newvalue = prompt("new value", element.value);
                 if (newvalue) {

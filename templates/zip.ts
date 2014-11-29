@@ -22,7 +22,7 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
     m.little = true;
     var entrycount = 0;
 
-    var CompressionMethodEnum = EnumRepresenter({
+    var CompressionMethodEnumValues:NumberDictionary<string> = {
         0: 'stored',
         1: 'shrunk',
         2: 'factor1',
@@ -45,7 +45,9 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
         19: 'ibm_lz77',
         97: 'wavpack',
         98: 'ppmd'
-    });
+    };
+
+    var CompressionMethodEnum = EnumRepresenter(CompressionMethodEnumValues);
 
     while (m.available > 0) {
         m.struct('entry', (node) => {
@@ -90,7 +92,7 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
 
                     m.u16('version_extract');
                     m.u16('flags');
-                    m.u16('compression_method', CompressionMethodEnum);
+                    var compression_method = m.u16('compression_method', CompressionMethodEnum);
                     m.u16('file_time', DOS_TIME_ValueRepresenter);
                     m.u16('file_date', DOS_DATE_ValueRepresenter);
                     m.u32('crc32', HexRepresenter);
@@ -100,7 +102,7 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
                     var extrafield_length = m.u16('extrafield_length');
                     var filename = m.str('filename', filename_length);
                     m.subs('extra', extrafield_length);
-                    m.chunk('content', compressed_size);
+                    m.chunk('content', compressed_size, CompressionMethodEnumValues[compression_method]);
 
                     return filename;
                     break;

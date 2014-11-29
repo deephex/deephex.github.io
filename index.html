@@ -37,6 +37,8 @@
             color:blue;
             cursor:default;
             padding-right: 0.5em;
+            padding-left: 0.5em;
+            border-left: 1px dashed #ccc;
         }
         div.hex .hexrow .hexcolumn {
             padding-left: 0.5em;
@@ -108,12 +110,30 @@
             content: "+ ";
             color: #777;
         }
+        .treeelement .treetitle {
+            padding: 3px 8px;
+        }
         .treeelement .treetitle:hover {
             color: #00f;
-            background: #f7f7f7;
+            background: #eee;
+            border-radius: 8px 8px 0 0;
+        }
+        .treeelement .treetitle.treenohaschildren:hover {
+            border-radius: 8px 8px 8px 8px;
+        }
+        .treeelement .treetitle.treehaschildren.unexpanded {
+            /*border-radius: 8px 8px 8px 8px;*/
+            padding-bottom: 2px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .treeelement .treetitle.treehaschildren.unexpanded:hover {
+            /*border-radius: 8px 8px 8px 8px;*/
+            padding-bottom: 2px;
+            border-bottom: 1px dotted #777;
         }
         .treeelement .treetitle:hover + .treechildren {
             background: #f7f7f7;
+            border-radius: 0 0 8px 8px;
         }
         .treeelement .treechildren {
             padding-left: 24px;
@@ -157,8 +177,8 @@
     <script type="text/javascript">
         var editor = HexEditor.convert(document.getElementById("hexcontainer"));
         var tools = new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);
-        //tools.loadsample6();
-        tools.loadsample5();
+        tools.loadsample6();
+        //tools.loadsample5();
     </script>
 
 </body>

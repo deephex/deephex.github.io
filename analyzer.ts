@@ -17,7 +17,7 @@ class AnalyzerMapperElement {
 }
 
 class HexChunk {
-    constructor(public data:number[]) {
+    constructor(public data:number[], public type:string = 'autodetect2') {
     }
 
     toHtml(editor:HexEditor) {
@@ -27,9 +27,11 @@ class HexChunk {
             e.preventDefault();
             //alert(1);
             editor.setData(new Uint8Array(this.data));
+            AnalyzerMapperPlugins.runAsync(this.type, editor);
             return false;
         }));
-        item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        item.append('HexChunk[' + this.data.length + '](' + this.type + ')');
         return item;
     }
 }
@@ -105,10 +107,13 @@ class AnalyzerMapperPlugins {
 
     static runAsync(name: string, editor:HexEditor) {
         return editor.getDataAsync().then(data => {
+            name = String(name).toLowerCase();
             var mapper = new AnalyzerMapper(new DataView(data.buffer));
             var e:any;
+            var template = AnalyzerMapperPlugins.templates[name];
             try {
-                AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
+                if (!template) throw new Error("Can't find template '" + name + "'");
+                template(mapper);
             } catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
@@ -221,9 +226,9 @@ class AnalyzerMapper {
         }
         return mapper;
     }
-    chunk(name:string, count:number, representer?: ValueRepresenter) {
+    chunk(name:string, count:number, type:string = 'autodetect3', representer?: ValueRepresenter) {
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
-        element.value = new HexChunk(this.readBytes(count));
+        element.value = new HexChunk(this.readBytes(count), type);
         this.node.elements.push(element);
         return element;
     }
@@ -269,6 +274,7 @@ class AnalyzerMapperRenderer {
     }
 
     html(element:AnalyzerMapperElement) {
+        var source = this.editor.source;
         var e = $('<div class="treeelement">');
         var title = $('<div class="treetitle">');
         var type = $('<span class="treetitletype">').text(element.type);
@@ -278,6 +284,7 @@ class AnalyzerMapperRenderer {
         e.append(title);
 
         title.mouseover(e => {
+            if (this.editor.source != source) return;
             this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
             this.editor.ensureViewVisibleRange(element.offset);
         });
@@ -301,8 +308,11 @@ class AnalyzerMapperRenderer {
                     childs.toggleClass('unexpanded', expanded);
                 });
                 e.append(childs);
+            } else {
+                title.addClass('treenohaschildren');
             }
         } else {
+            title.addClass('treenohaschildren');
             title.click(e => {
                 var newvalue = prompt("new value", element.value);
                 if (newvalue) {

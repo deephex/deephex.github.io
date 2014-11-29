@@ -54,7 +54,7 @@ AnalyzerMapperPlugins.register('PNG', (m:AnalyzerMapper) => {
                         }
                         break;
                     case 'IDAT':
-                        m.chunk('content', m.available);
+                        m.chunk('content', m.available, 'zlib_deflate');
                         break;
                     case 'PLTE':
                         var colorCount = 0;
