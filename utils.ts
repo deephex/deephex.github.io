@@ -51,12 +51,17 @@ class TextDecoderEncoding implements Encoding {
 class CType {
     static isPrint(value:Number) {
         if (value < 32) return false;
+        if (value >= 0x7F && value <= 0xA0) return false;
+        if (value == 0x2028) return false;
+        if (value == 0x2029) return false;
+        if (value == 0xFFFD) return false;
         return true;
     }
 
     static ensurePrintable(str:string) {
+        return str.split('').map(char => CType.isPrint(char.charCodeAt(0)) ? char : '.').join('');
         //return String.fromCharCode.apply(null, str.split('').map(v => (v.charCodeAt(0) < 32) ? v : '.'));
-        return str;
+        //return str;
     }
 }
 
