@@ -73,6 +73,12 @@ var HexTools = (function () {
         $(element).append($('<input type="button" value="str_rot13" />').click(function () {
             _this.rot13();
         }));
+        $(element).append($('<input type="button" value="upper" />').click(function () {
+            _this.upper();
+        }));
+        $(element).append($('<input type="button" value="lower" />').click(function () {
+            _this.lower();
+        }));
         $(element).append($('<input type="button" value="output_as_hex" />').click(function () {
             _this.outputHex();
         }));
@@ -87,6 +93,15 @@ var HexTools = (function () {
         }));
         $(element).append($('<input type="button" value="load sample" />').click(function () {
             _this.loadsample();
+        }));
+        $(element).append($('<input type="button" value="load sample 2" />').click(function () {
+            _this.loadsample2();
+        }));
+        $(element).append($('<input type="button" value="load sample 3" />').click(function () {
+            _this.loadsample3();
+        }));
+        $(element).append($('<input type="button" value="load deflate test" />').click(function () {
+            _this.loadsample4();
         }));
         var info = $('<div>-</div>');
         $(element).append(info);
@@ -103,11 +118,11 @@ var HexTools = (function () {
         enumerable: true,
         configurable: true
     });
-    HexTools.prototype.loadsample = function () {
+    HexTools.prototype._loadsample = function (name, type) {
         var _this = this;
-        download('check.png', function (data) {
+        download(name, function (data) {
             _this.editor.setData(data);
-            AnalyzerMapperPlugins.runAsync('PNG', _this.editor).then(function (result) {
+            AnalyzerMapperPlugins.runAsync(type, _this.editor).then(function (result) {
                 console.log(result.node);
                 if (result.error)
                     console.error(result.error);
@@ -115,6 +130,18 @@ var HexTools = (function () {
                 $('#hexoutput').append(result.element);
             });
         });
+    };
+    HexTools.prototype.loadsample = function () {
+        this._loadsample('check.png', 'PNG');
+    };
+    HexTools.prototype.loadsample2 = function () {
+        this._loadsample('zipfile.zip', 'ZIP');
+    };
+    HexTools.prototype.loadsample3 = function () {
+        this._loadsample('scratch.png', 'PNG');
+    };
+    HexTools.prototype.loadsample4 = function () {
+        this._loadsample('test.deflate', 'DEFLATE');
     };
     HexTools.prototype.hash = function () {
     };
@@ -135,6 +162,16 @@ var HexTools = (function () {
             parts.push('0x' + ('00' + _this.editor.getByteAt(offset).toString(16)).slice(-2));
         });
         $(this.outputelement).text('unsigned char data[' + parts.length + '] = {\n\t' + array_chunks(parts, 16).map(function (items) { return items.join(', ') + ','; }).join('\n\t').replace(/,$/, '') + '\n};');
+    };
+    HexTools.prototype.lower = function () {
+        this.iterateSelection(function (c) {
+            return String.fromCharCode(c).toLowerCase().charCodeAt(0);
+        });
+    };
+    HexTools.prototype.upper = function () {
+        this.iterateSelection(function (c) {
+            return String.fromCharCode(c).toUpperCase().charCodeAt(0);
+        });
     };
     HexTools.prototype.rot13 = function () {
         this.iterateSelection(function (c) {

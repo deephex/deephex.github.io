@@ -309,19 +309,23 @@
       <properties>
         <sourceFilesUrls>
           <item url="file://$PROJECT_DIR$/utils.js" />
+          <item url="file://$PROJECT_DIR$/templates/deflate.js" />
           <item url="file://$PROJECT_DIR$/analyzer.js" />
           <item url="file://$PROJECT_DIR$/templates/png.js" />
           <item url="file://$PROJECT_DIR$/editor.js" />
           <item url="file://$PROJECT_DIR$/tools.js" />
+          <item url="file://$PROJECT_DIR$/templates/zip.js" />
         </sourceFilesUrls>
       </properties>
       <CLASSES>
         <root url="file://$PROJECT_DIR$/sha1.js" />
         <root url="file://$PROJECT_DIR$/utils.js" />
+        <root url="file://$PROJECT_DIR$/templates/deflate.js" />
         <root url="file://$PROJECT_DIR$/templates/png.js" />
         <root url="file://$PROJECT_DIR$/analyzer.js" />
         <root url="file://$PROJECT_DIR$/editor.js" />
         <root url="file://$PROJECT_DIR$/tools.js" />
+        <root url="file://$PROJECT_DIR$/templates/zip.js" />
       </CLASSES>
       <JAVADOC />
       <SOURCES />

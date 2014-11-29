@@ -7,6 +7,8 @@
     <script type="text/javascript" src="analyzer.js"></script>
     <script type="text/javascript" src="tools.js"></script>
     <script type="text/javascript" src="templates/png.js"></script>
+    <script type="text/javascript" src="templates/zip.js"></script>
+    <script type="text/javascript" src="templates/deflate.js"></script>
     <style>
         div.hex {
             font:14px "Lucida Console", "Courier New", Courier, monospace;
@@ -99,11 +101,11 @@
             font-weight: bold;
         }
         .treeelement .treetitle.treehaschildren.expanded::before {
-            content: "+ ";
+            content: "- ";
             color: #777;
         }
         .treeelement .treetitle.treehaschildren.unexpanded::before {
-            content: "- ";
+            content: "+ ";
             color: #777;
         }
         .treeelement .treetitle:hover {
@@ -122,6 +124,7 @@
             display: block;
         }
         .hexrgbsample {
+            background-size:100% 100%;
             width: 1em;
             height: 0.7em;
             border: 1px solid black;

@@ -3,6 +3,8 @@
 ///<reference path="../tools.ts" />
 ///<reference path="../analyzer.ts" />
 AnalyzerMapperPlugins.register('PNG', function (m) {
+    m.node.name = 'png';
+    m.node.value = new HexImage(m.data.buffer);
     m.little = false;
     m.str('magic', 8);
     function chunk() {

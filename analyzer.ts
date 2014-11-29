@@ -20,12 +20,16 @@ class ValueRepresenter {
     constructor(public represent: (value:number) => string) {
     }
 
-    static enum(map:NumberDictionary<string>) {
+    static enum(map:NumberDictionary<string>, hex = false) {
         return new ValueRepresenter((value) => {
             var name = map[value] || 'unknown';
-            return name + '(' + value + ')';
+            return name + '(' + (hex ? ('0x' + value.toString(16)) : String(value)) + ')';
         });
     }
+}
+
+function EnumRepresenter(map:NumberDictionary<string>, hex = false) {
+    return ValueRepresenter.enum(map, hex);
 }
 
 var HexRepresenter = new ValueRepresenter((value:number) => {
@@ -36,23 +40,33 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
     elements: AnalyzerMapperElement[] = [];
     expanded:boolean = true;
 
-    constructor(name:string, public parent: AnalyzerMapperNode) {
+    constructor(name:string, public parent: AnalyzerMapperNode, private soffset: number = 0, private scount: number = 0) {
         super(name, 'struct');
     }
 
+    get hasElements() { return this.elements.length > 0; }
     get first() { return this.elements[0]; }
     get last() { return this.elements[this.elements.length - 1]; }
 
-    get offset() { return this.first.offset; }
-    get bitoffset() { return this.first.bitoffset; }
-    get bitcount() { return (this.last.offset - this.offset) * 8 + this.last.bitcount; }
+    get offset() {
+        if (!this.hasElements) return this.soffset;
+        return this.first.offset;
+    }
+    get bitoffset() {
+        if (!this.hasElements) return 0;
+        return this.first.bitoffset;
+    }
+    get bitcount() {
+        if (!this.scount) return 0;
+        return (this.last.offset - this.offset) * 8 + this.last.bitcount;
+    }
 }
 
 class AnalyzerMapperPlugins {
     static templates: StringDictionary<(mapper:AnalyzerMapper) => void> = {};
 
     static register(name:string, callback:(mapper:AnalyzerMapper) => void) {
-        AnalyzerMapperPlugins.templates[name] = callback;
+        AnalyzerMapperPlugins.templates[name.toLowerCase()] = callback;
     }
 
     static runAsync(name: string, editor:HexEditor) {
@@ -60,7 +74,7 @@ class AnalyzerMapperPlugins {
             var mapper = new AnalyzerMapper(new DataView(data.buffer));
             var e:any;
             try {
-                AnalyzerMapperPlugins.templates[name](mapper);
+                AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
             } catch (_e) {
                 console.error(_e);
                 e = _e;
@@ -81,8 +95,8 @@ class AnalyzerMapper {
     bitoffset = 0;
     little = true;
 
-    constructor(private data:DataView, public node:AnalyzerMapperNode = null, public addoffset = 0) {
-        if (this.node == null) this.node = new AnalyzerMapperNode("root", null);
+    constructor(public data:DataView, public node:AnalyzerMapperNode = null, public addoffset = 0) {
+        if (this.node == null) this.node = new AnalyzerMapperNode("root", null, addoffset, data.byteLength);
     }
 
     get available() { return this.length - this.offset; }
@@ -94,6 +108,14 @@ class AnalyzerMapper {
         this.node.elements.push(element);
         this.offset += bytecount;
         return value;
+    }
+
+    bits(name: string, bitcount:number) {
+
+    }
+
+    alignbyte() {
+
     }
 
     u8(name:string, representer?: ValueRepresenter) { return this._read(name, 'u8', 1, offset => this.data.getUint8(offset), representer); }
@@ -117,7 +139,7 @@ class AnalyzerMapper {
     }
     subs(name:string, count:number, callback?: (mapper:AnalyzerMapper) => void) {
         var value = <ArrayBuffer>((<any>this.data.buffer).slice(this.offset, this.offset + count));
-        var subsnode = new AnalyzerMapperNode(name, this.node);
+        var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
         var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
         mapper.little = this.little;
         this.node.elements.push(subsnode);
@@ -129,10 +151,10 @@ class AnalyzerMapper {
         return mapper;
     }
 
-    struct(name:string, callback: () => void, expanded:boolean = true) {
+    struct(name:string, callback: (node?:AnalyzerMapperNode) => void, expanded:boolean = true) {
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        var value = callback();
+        var value = callback(groupnode);
         groupnode.value = value;
         groupnode.expanded = expanded;
         this.node = parentnode;

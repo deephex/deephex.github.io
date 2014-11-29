@@ -458,6 +458,7 @@ var HexEditor = (function () {
                 _this.moveViewBy(deltaWheelInt * _this.columns);
                 deltaWheel = 0;
             }
+            e.preventDefault();
         });
         $(document).keydown(function (e) {
             switch (e.keyCode) {

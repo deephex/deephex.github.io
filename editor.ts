@@ -460,14 +460,15 @@ class HexEditor {
         var pressingCmd = false;
 
         var deltaWheel = 0;
-        $(element).on('wheel', (e) => {
-            var ee = <any>e.originalEvent;
+        $(element).on('wheel', (e:Event) => {
+            var ee = (<any>e).originalEvent;
             deltaWheel += ee.deltaY;
             var deltaWheelInt = Math.floor(deltaWheel / 10);
             if (Math.abs(deltaWheelInt) >= 1) {
                 this.moveViewBy(deltaWheelInt * this.columns);
                 deltaWheel = 0;
             }
+            e.preventDefault();
         });
 
         $(document).keydown(e => {

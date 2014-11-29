@@ -37,25 +37,41 @@ var ValueRepresenter = (function () {
     function ValueRepresenter(represent) {
         this.represent = represent;
     }
-    ValueRepresenter.enum = function (map) {
+    ValueRepresenter.enum = function (map, hex) {
+        if (hex === void 0) { hex = false; }
         return new ValueRepresenter(function (value) {
             var name = map[value] || 'unknown';
-            return name + '(' + value + ')';
+            return name + '(' + (hex ? ('0x' + value.toString(16)) : String(value)) + ')';
         });
     };
     return ValueRepresenter;
 })();
+function EnumRepresenter(map, hex) {
+    if (hex === void 0) { hex = false; }
+    return ValueRepresenter.enum(map, hex);
+}
 var HexRepresenter = new ValueRepresenter(function (value) {
     return '0x' + ('00000000' + value.toString(16)).slice(-8).toUpperCase();
 });
 var AnalyzerMapperNode = (function (_super) {
     __extends(AnalyzerMapperNode, _super);
-    function AnalyzerMapperNode(name, parent) {
+    function AnalyzerMapperNode(name, parent, soffset, scount) {
+        if (soffset === void 0) { soffset = 0; }
+        if (scount === void 0) { scount = 0; }
         _super.call(this, name, 'struct');
         this.parent = parent;
+        this.soffset = soffset;
+        this.scount = scount;
         this.elements = [];
         this.expanded = true;
     }
+    Object.defineProperty(AnalyzerMapperNode.prototype, "hasElements", {
+        get: function () {
+            return this.elements.length > 0;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(AnalyzerMapperNode.prototype, "first", {
         get: function () {
             return this.elements[0];
@@ -72,6 +88,8 @@ var AnalyzerMapperNode = (function (_super) {
     });
     Object.defineProperty(AnalyzerMapperNode.prototype, "offset", {
         get: function () {
+            if (!this.hasElements)
+                return this.soffset;
             return this.first.offset;
         },
         enumerable: true,
@@ -79,6 +97,8 @@ var AnalyzerMapperNode = (function (_super) {
     });
     Object.defineProperty(AnalyzerMapperNode.prototype, "bitoffset", {
         get: function () {
+            if (!this.hasElements)
+                return 0;
             return this.first.bitoffset;
         },
         enumerable: true,
@@ -86,6 +106,8 @@ var AnalyzerMapperNode = (function (_super) {
     });
     Object.defineProperty(AnalyzerMapperNode.prototype, "bitcount", {
         get: function () {
+            if (!this.scount)
+                return 0;
             return (this.last.offset - this.offset) * 8 + this.last.bitcount;
         },
         enumerable: true,
@@ -97,14 +119,14 @@ var AnalyzerMapperPlugins = (function () {
     function AnalyzerMapperPlugins() {
     }
     AnalyzerMapperPlugins.register = function (name, callback) {
-        AnalyzerMapperPlugins.templates[name] = callback;
+        AnalyzerMapperPlugins.templates[name.toLowerCase()] = callback;
     };
     AnalyzerMapperPlugins.runAsync = function (name, editor) {
         return editor.getDataAsync().then(function (data) {
             var mapper = new AnalyzerMapper(new DataView(data.buffer));
             var e;
             try {
-                AnalyzerMapperPlugins.templates[name](mapper);
+                AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
             }
             catch (_e) {
                 console.error(_e);
@@ -127,7 +149,7 @@ var AnalyzerMapper = (function () {
         this.bitoffset = 0;
         this.little = true;
         if (this.node == null)
-            this.node = new AnalyzerMapperNode("root", null);
+            this.node = new AnalyzerMapperNode("root", null, addoffset, data.byteLength);
     }
     Object.defineProperty(AnalyzerMapper.prototype, "available", {
         get: function () {
@@ -149,6 +171,10 @@ var AnalyzerMapper = (function () {
         this.node.elements.push(element);
         this.offset += bytecount;
         return value;
+    };
+    AnalyzerMapper.prototype.bits = function (name, bitcount) {
+    };
+    AnalyzerMapper.prototype.alignbyte = function () {
     };
     AnalyzerMapper.prototype.u8 = function (name, representer) {
         var _this = this;
@@ -184,7 +210,7 @@ var AnalyzerMapper = (function () {
     };
     AnalyzerMapper.prototype.subs = function (name, count, callback) {
         var value = (this.data.buffer.slice(this.offset, this.offset + count));
-        var subsnode = new AnalyzerMapperNode(name, this.node);
+        var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
         var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
         mapper.little = this.little;
         this.node.elements.push(subsnode);
@@ -199,7 +225,7 @@ var AnalyzerMapper = (function () {
         if (expanded === void 0) { expanded = true; }
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        var value = callback();
+        var value = callback(groupnode);
         groupnode.value = value;
         groupnode.expanded = expanded;
         this.node = parentnode;

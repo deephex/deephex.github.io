@@ -44,6 +44,17 @@ var CType = (function () {
     };
     return CType;
 })();
+var HexImage = (function () {
+    function HexImage(data) {
+        this.data = data;
+    }
+    HexImage.prototype.toHtml = function () {
+        var blob = new Blob([this.data], { type: 'application/octet-binary' }); // pass a useful mime type here
+        var url = URL.createObjectURL(blob);
+        return '<span class="hexrgbsample" style="background-image:url(' + url + ');"></span>';
+    };
+    return HexImage;
+})();
 var HexRgb = (function () {
     function HexRgb(red, green, blue) {
         this.red = red;
@@ -90,5 +101,11 @@ function waitAsync(time) {
     return new Promise(function (resolve, reject) {
         setTimeout(resolve, time);
     });
+}
+function strpad_left(value, char, count) {
+    return (Array(count).join(char) + value).slice(-count);
+}
+function strpad_right(value, char, count) {
+    return (value + Array(count).join(char)).slice(count);
 }
 //# sourceMappingURL=utils.js.map

@@ -39,11 +39,16 @@ class HexTools {
         $(element).append($('<input type="button" value="select all" />').click(() => { this.selectAll(); }));
         $(element).append($('<input type="button" value="text" />').click(() => { this.text(); }));
         $(element).append($('<input type="button" value="str_rot13" />').click(() => { this.rot13(); }));
+        $(element).append($('<input type="button" value="upper" />').click(() => { this.upper(); }));
+        $(element).append($('<input type="button" value="lower" />').click(() => { this.lower(); }));
         $(element).append($('<input type="button" value="output_as_hex" />').click(() => { this.outputHex(); }));
         $(element).append($('<input type="button" value="output_as_c" />').click(() => { this.outputC(); }));
         $(element).append($('<input type="button" value="hash" />').click(() => { this.hash(); }));
         $(element).append($('<input type="button" value="analyze" />').click(() => { this.analyze(); }));
         $(element).append($('<input type="button" value="load sample" />').click(() => { this.loadsample(); }));
+        $(element).append($('<input type="button" value="load sample 2" />').click(() => { this.loadsample2(); }));
+        $(element).append($('<input type="button" value="load sample 3" />').click(() => { this.loadsample3(); }));
+        $(element).append($('<input type="button" value="load deflate test" />').click(() => { this.loadsample4(); }));
         var info = $('<div>-</div>');
         $(element).append(info);
         editor.onMove.add(() => {
@@ -53,10 +58,10 @@ class HexTools {
         editor.update();
     }
 
-    loadsample() {
-        download('check.png', (data) => {
+    private _loadsample(name:string, type:string) {
+        download(name, (data) => {
             this.editor.setData(data);
-            AnalyzerMapperPlugins.runAsync('PNG', this.editor).then(result => {
+            AnalyzerMapperPlugins.runAsync(type, this.editor).then(result => {
                 console.log(result.node);
                 if (result.error) console.error(result.error);
                 $('#hexoutput').html('');
@@ -64,6 +69,11 @@ class HexTools {
             });
         });
     }
+
+    loadsample() { this._loadsample('check.png', 'PNG'); }
+    loadsample2() { this._loadsample('zipfile.zip', 'ZIP'); }
+    loadsample3() { this._loadsample('scratch.png', 'PNG'); }
+    loadsample4() { this._loadsample('test.deflate', 'DEFLATE'); }
 
     hash() {
     }
@@ -89,6 +99,14 @@ class HexTools {
             array_chunks(parts, 16).map(items => items.join(', ') + ',').join('\n\t').replace(/,$/, '') +
             '\n};'
         );
+    }
+
+    lower() {
+        this.iterateSelection(c => { return String.fromCharCode(c).toLowerCase().charCodeAt(0); });
+    }
+
+    upper() {
+        this.iterateSelection(c => { return String.fromCharCode(c).toUpperCase().charCodeAt(0); });
     }
 
     rot13() {

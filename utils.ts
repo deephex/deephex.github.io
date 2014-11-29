@@ -60,6 +60,17 @@ class CType {
     }
 }
 
+class HexImage {
+    constructor(public data:ArrayBuffer) {
+    }
+
+    toHtml() {
+        var blob = new Blob([this.data], {type: 'application/octet-binary'}); // pass a useful mime type here
+        var url = URL.createObjectURL(blob);
+        return '<span class="hexrgbsample" style="background-image:url(' + url + ');"></span>';
+    }
+}
+
 class HexRgb {
     constructor(public red:number, public green:number, public blue:number) {
     }
@@ -121,4 +132,12 @@ function waitAsync(time:number) {
     return new Promise((resolve, reject) => {
         setTimeout(resolve, time);
     });
+}
+
+function strpad_left(value:string, char:string, count:number) {
+    return (Array(count).join(char) + value).slice(-count);
+}
+
+function strpad_right(value:string, char:string, count:number) {
+    return (value + Array(count).join(char)).slice(count);
 }
