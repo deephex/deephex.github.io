@@ -49,6 +49,8 @@ class HexTools {
         $(element).append($('<input type="button" value="load sample 2" />').click(() => { this.loadsample2(); }));
         $(element).append($('<input type="button" value="load sample 3" />').click(() => { this.loadsample3(); }));
         $(element).append($('<input type="button" value="load deflate test" />').click(() => { this.loadsample4(); }));
+        $(element).append($('<input type="button" value="load deflate test (2)" />').click(() => { this.loadsample5(); }));
+        $(element).append($('<input type="button" value="load deflate test (3)" />').click(() => { this.loadsample6(); }));
         var info = $('<div>-</div>');
         $(element).append(info);
         editor.onMove.add(() => {
@@ -74,6 +76,8 @@ class HexTools {
     loadsample2() { this._loadsample('zipfile.zip', 'ZIP'); }
     loadsample3() { this._loadsample('scratch.png', 'PNG'); }
     loadsample4() { this._loadsample('test.deflate', 'DEFLATE'); }
+    loadsample5() { this._loadsample('test2.deflate', 'DEFLATE'); }
+    loadsample6() { this._loadsample('test3.deflate', 'DEFLATE'); }
 
     hash() {
     }

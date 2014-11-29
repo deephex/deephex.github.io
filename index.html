@@ -144,7 +144,8 @@
     </div>
     <script type="text/javascript">
         var editor = HexEditor.convert(document.getElementById("hexcontainer"));
-        new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);
+        var tools = new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);
+        tools.loadsample6();
     </script>
 
 </body>

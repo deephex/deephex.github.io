@@ -50,8 +50,17 @@ function EnumRepresenter(map, hex) {
     if (hex === void 0) { hex = false; }
     return ValueRepresenter.enum(map, hex);
 }
+var BoolRepresenter = new ValueRepresenter(function (value) {
+    return (value ? 'true' : 'false') + ' (' + value + ')';
+});
 var HexRepresenter = new ValueRepresenter(function (value) {
     return '0x' + ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+});
+var CharRepresenter = new ValueRepresenter(function (value) {
+    return '0x' + ('0000' + value.toString(16)).slice(-4).toUpperCase() + " ('" + String.fromCharCode(value) + "')";
+});
+var BinRepresenter = new ValueRepresenter(function (value) {
+    return '0b' + ('00000000' + value.toString(2)).slice(-8).toUpperCase();
 });
 var AnalyzerMapperNode = (function (_super) {
     __extends(AnalyzerMapperNode, _super);
@@ -146,8 +155,11 @@ var AnalyzerMapper = (function () {
         this.node = node;
         this.addoffset = addoffset;
         this.offset = 0;
-        this.bitoffset = 0;
+        this.bitsoffset = 0;
+        this.bitdata = 0;
+        this.bitsavailable = 0;
         this.little = true;
+        this.toffset = 0;
         if (this.node == null)
             this.node = new AnalyzerMapperNode("root", null, addoffset, data.byteLength);
     }
@@ -172,10 +184,49 @@ var AnalyzerMapper = (function () {
         this.offset += bytecount;
         return value;
     };
-    AnalyzerMapper.prototype.bits = function (name, bitcount) {
+    AnalyzerMapper.prototype.readByte = function () {
+        if (this.available < 0)
+            throw new Error("No more data available");
+        return this.data.getUint8(this.offset++);
+    };
+    AnalyzerMapper.prototype.readBits = function (bitcount) {
+        if (bitcount == 0)
+            return 0;
+        while (this.bitsavailable < bitcount) {
+            this.bitsoffset = this.offset;
+            this.bitdata |= this.readByte() << this.bitsavailable;
+            this.bitsavailable += 8;
+        }
+        var readed = BitUtils.extract(this.bitdata, 0, bitcount);
+        this.bitdata >>>= bitcount;
+        this.bitsavailable -= bitcount;
+        return readed;
+    };
+    AnalyzerMapper.prototype.bits = function (name, bitcount, representer) {
+        var offset = this.bitsoffset;
+        var value = this.readBits(bitcount);
+        var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+        this.node.elements.push(element);
+        return value;
     };
     AnalyzerMapper.prototype.alignbyte = function () {
+        this.bitsavailable = 0;
+        this.bitdata = 0;
     };
+    Object.defineProperty(AnalyzerMapper.prototype, "name", {
+        set: function (v) {
+            this.node.name = v;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(AnalyzerMapper.prototype, "value", {
+        set: function (v) {
+            this.node.value = v;
+        },
+        enumerable: true,
+        configurable: true
+    });
     AnalyzerMapper.prototype.u8 = function (name, representer) {
         var _this = this;
         return this._read(name, 'u8', 1, function (offset) { return _this.data.getUint8(offset); }, representer);
@@ -230,6 +281,16 @@ var AnalyzerMapper = (function () {
         groupnode.expanded = expanded;
         this.node = parentnode;
         this.node.elements.push(groupnode);
+    };
+    AnalyzerMapper.prototype.tvalueOffset = function (callback) {
+        var old = this.toffset;
+        this.toffset = this.offset;
+        callback();
+        this.toffset = old;
+    };
+    AnalyzerMapper.prototype.tvalue = function (name, type, value, representer) {
+        this.node.elements.push(new AnalyzerMapperElement(name, type, this.toffset, 0, (this.offset - this.toffset) * 8, value, representer));
+        this.toffset = this.offset;
     };
     return AnalyzerMapper;
 })();

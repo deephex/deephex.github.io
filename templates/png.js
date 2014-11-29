@@ -3,8 +3,8 @@
 ///<reference path="../tools.ts" />
 ///<reference path="../analyzer.ts" />
 AnalyzerMapperPlugins.register('PNG', function (m) {
-    m.node.name = 'png';
-    m.node.value = new HexImage(m.data.buffer);
+    m.name = 'png';
+    m.value = new HexImage(m.data.buffer);
     m.little = false;
     m.str('magic', 8);
     function chunk() {
@@ -14,6 +14,7 @@ AnalyzerMapperPlugins.register('PNG', function (m) {
             m.subs('content', size, function (m) {
                 switch (type) {
                     case 'IHDR':
+                        m.name = 'header';
                         var width = m.u32('width');
                         var height = m.u32('height');
                         m.u8('bits');

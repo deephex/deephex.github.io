@@ -64,6 +64,15 @@ var HexImage = (function () {
     };
     return HexImage;
 })();
+var HexChunk = (function () {
+    function HexChunk(data) {
+        this.data = data;
+    }
+    HexChunk.prototype.toHtml = function () {
+        return 'HexChunk[' + this.data.length + '](' + htmlspecialchars(CType.ensurePrintable(String.fromCharCode.apply(null, this.data))) + ')';
+    };
+    return HexChunk;
+})();
 var HexRgb = (function () {
     function HexRgb(red, green, blue) {
         this.red = red;
@@ -117,4 +126,26 @@ function strpad_left(value, char, count) {
 function strpad_right(value, char, count) {
     return (value + Array(count).join(char)).slice(count);
 }
+var MathUtils = (function () {
+    function MathUtils() {
+    }
+    MathUtils.ceilMultiple = function (value, multiple) {
+        return Math.ceil(value / multiple) * multiple;
+    };
+    MathUtils.floorMultiple = function (value, multiple) {
+        return Math.floor(value / multiple) * multiple;
+    };
+    return MathUtils;
+})();
+var BitUtils = (function () {
+    function BitUtils() {
+    }
+    BitUtils.extract = function (value, offset, count) {
+        return (value >>> offset) & this.mask(count);
+    };
+    BitUtils.mask = function (count) {
+        return (1 << count) - 1;
+    };
+    return BitUtils;
+})();
 //# sourceMappingURL=utils.js.map

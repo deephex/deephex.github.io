@@ -103,6 +103,12 @@ var HexTools = (function () {
         $(element).append($('<input type="button" value="load deflate test" />').click(function () {
             _this.loadsample4();
         }));
+        $(element).append($('<input type="button" value="load deflate test (2)" />').click(function () {
+            _this.loadsample5();
+        }));
+        $(element).append($('<input type="button" value="load deflate test (3)" />').click(function () {
+            _this.loadsample6();
+        }));
         var info = $('<div>-</div>');
         $(element).append(info);
         editor.onMove.add(function () {
@@ -142,6 +148,12 @@ var HexTools = (function () {
     };
     HexTools.prototype.loadsample4 = function () {
         this._loadsample('test.deflate', 'DEFLATE');
+    };
+    HexTools.prototype.loadsample5 = function () {
+        this._loadsample('test2.deflate', 'DEFLATE');
+    };
+    HexTools.prototype.loadsample6 = function () {
+        this._loadsample('test3.deflate', 'DEFLATE');
     };
     HexTools.prototype.hash = function () {
     };

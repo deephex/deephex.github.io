@@ -4,8 +4,8 @@
 ///<reference path="../analyzer.ts" />
 
 AnalyzerMapperPlugins.register('PNG', (m:AnalyzerMapper) => {
-    m.node.name = 'png';
-    m.node.value = new HexImage(m.data.buffer);
+    m.name = 'png';
+    m.value = new HexImage(m.data.buffer);
     m.little = false;
     m.str('magic', 8);
 
@@ -16,6 +16,7 @@ AnalyzerMapperPlugins.register('PNG', (m:AnalyzerMapper) => {
             m.subs('content', size, m => {
                 switch (type) {
                     case 'IHDR':
+                        m.name = 'header';
                         var width = m.u32('width');
                         var height = m.u32('height');
                         m.u8('bits');

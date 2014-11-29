@@ -32,8 +32,20 @@ function EnumRepresenter(map:NumberDictionary<string>, hex = false) {
     return ValueRepresenter.enum(map, hex);
 }
 
+var BoolRepresenter = new ValueRepresenter((value:number) => {
+    return (value ? 'true' : 'false') + ' (' + value + ')';
+});
+
 var HexRepresenter = new ValueRepresenter((value:number) => {
     return '0x' + ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+});
+
+var CharRepresenter = new ValueRepresenter((value:number) => {
+    return '0x' + ('0000' + value.toString(16)).slice(-4).toUpperCase() + " ('" + String.fromCharCode(value) + "')";
+});
+
+var BinRepresenter = new ValueRepresenter((value:number) => {
+    return '0b' + ('00000000' + value.toString(2)).slice(-8).toUpperCase();
 });
 
 class AnalyzerMapperNode extends AnalyzerMapperElement {
@@ -92,7 +104,9 @@ class AnalyzerMapperPlugins {
 
 class AnalyzerMapper {
     offset = 0;
-    bitoffset = 0;
+    bitsoffset = 0;
+    bitdata = 0;
+    bitsavailable = 0;
     little = true;
 
     constructor(public data:DataView, public node:AnalyzerMapperNode = null, public addoffset = 0) {
@@ -110,13 +124,39 @@ class AnalyzerMapper {
         return value;
     }
 
-    bits(name: string, bitcount:number) {
+    readByte() {
+        if (this.available < 0) throw new Error("No more data available");
+        return this.data.getUint8(this.offset++);
+    }
 
+    readBits(bitcount:number) {
+        if (bitcount == 0) return 0;
+        while (this.bitsavailable < bitcount) {
+            this.bitsoffset = this.offset;
+            this.bitdata |= this.readByte() << this.bitsavailable;
+            this.bitsavailable += 8;
+        }
+        var readed = BitUtils.extract(this.bitdata, 0, bitcount);
+        this.bitdata >>>= bitcount;
+        this.bitsavailable -= bitcount;
+        return readed;
+    }
+
+    bits(name: string, bitcount:number, representer?: ValueRepresenter) {
+        var offset = this.bitsoffset;
+        var value = this.readBits(bitcount);
+        var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+        this.node.elements.push(element);
+        return value;
     }
 
     alignbyte() {
-
+        this.bitsavailable = 0;
+        this.bitdata = 0;
     }
+
+    set name(v:string) { this.node.name = v; }
+    set value(v:any) { this.node.value = v; }
 
     u8(name:string, representer?: ValueRepresenter) { return this._read(name, 'u8', 1, offset => this.data.getUint8(offset), representer); }
     u16(name:string, representer?: ValueRepresenter) { return this._read(name, 'u16', 2, offset => this.data.getUint16(offset, this.little), representer); }
@@ -159,6 +199,24 @@ class AnalyzerMapper {
         groupnode.expanded = expanded;
         this.node = parentnode;
         this.node.elements.push(groupnode);
+    }
+
+    toffset = 0;
+
+    tvalueOffset<T>(callback: () => void) {
+        var old = this.toffset;
+        this.toffset = this.offset;
+        callback();
+        this.toffset = old;
+    }
+
+    tvalue<T>(name:string, type:string, value:T, representer?: ValueRepresenter) {
+        this.node.elements.push(new AnalyzerMapperElement(
+            name, type, this.toffset,
+            0, (this.offset - this.toffset) * 8,
+            value, representer
+        ));
+        this.toffset = this.offset;
     }
 }
 

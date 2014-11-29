@@ -18,7 +18,9 @@ var DOS_DATE_ValueRepresenter = new ValueRepresenter((dostime: number) => {
 });
 
 AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
+    m.node.name = 'zip';
     m.little = true;
+    var entrycount = 0;
     while (m.available > 0) {
         m.struct('entry', (node) => {
             var magic = m.str('magic', 2);
@@ -58,6 +60,8 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
                 case 0x0403:
                     node.name = 'local_file_header';
 
+                    entrycount++;
+
                     m.u16('version_extract');
                     m.u16('flags');
                     m.u16('compression_method');
@@ -91,4 +95,5 @@ AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
             }
         }, false);
     }
+    m.node.value = 'files:' + entrycount;
 });

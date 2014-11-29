@@ -76,6 +76,15 @@ class HexImage {
     }
 }
 
+class HexChunk {
+    constructor(public data:number[]) {
+    }
+
+    toHtml() {
+        return 'HexChunk[' + this.data.length + '](' + htmlspecialchars(CType.ensurePrintable(String.fromCharCode.apply(null, this.data))) + ')';
+    }
+}
+
 class HexRgb {
     constructor(public red:number, public green:number, public blue:number) {
     }
@@ -145,4 +154,15 @@ function strpad_left(value:string, char:string, count:number) {
 
 function strpad_right(value:string, char:string, count:number) {
     return (value + Array(count).join(char)).slice(count);
+}
+
+
+class MathUtils {
+    static ceilMultiple(value:number, multiple:number) { return Math.ceil(value / multiple) * multiple; }
+    static floorMultiple(value:number, multiple:number) { return Math.floor(value / multiple) * multiple; }
+}
+
+class BitUtils {
+    static extract(value:number, offset:number, count:number) { return (value >>> offset) & this.mask(count); }
+    static mask(count:number) { return (1 << count) - 1; }
 }
