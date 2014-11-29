@@ -176,6 +176,9 @@ AnalyzerMapperPlugins.register('DEFLATE', function (m) {
                         var dist = fixeddist;
                     }
                     else {
+                        var numLitLenCodes = m.readBits(5) + 257; // hlit  + 257
+                        var numDistCodes = m.readBits(5) + 1; // hdist +   1
+                        var numCodeLenCodes = m.readBits(4) + 4; // hclen +   4
                         throw new Error("unsupported btype=2!");
                     }
                     var completed = false;

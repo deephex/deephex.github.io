@@ -64,15 +64,6 @@ var HexImage = (function () {
     };
     return HexImage;
 })();
-var HexChunk = (function () {
-    function HexChunk(data) {
-        this.data = data;
-    }
-    HexChunk.prototype.toHtml = function () {
-        return 'HexChunk[' + this.data.length + '](' + htmlspecialchars(CType.ensurePrintable(String.fromCharCode.apply(null, this.data))) + ')';
-    };
-    return HexChunk;
-})();
 var HexRgb = (function () {
     function HexRgb(red, green, blue) {
         this.red = red;

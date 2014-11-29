@@ -9,9 +9,10 @@ var HexCell = (function () {
         this.column = column;
         this._value = 0;
         this.viewoffset = 0;
+        this._enabled = false;
         this._selected = false;
-        this.elementHex = $('<span class="byte">00</span>').get(0);
-        this.elementChar = $('<span class="char">.</span>').get(0);
+        this.elementHex = $('<span class="byte">  </span>').get(0);
+        this.elementChar = $('<span class="char"> </span>').get(0);
         this.viewoffset = this.row.row * this.row.editor.columns + this.column;
         $(this.elementHex).click(function (e) {
             _this.row.editor.onCellClick.dispatch(_this);
@@ -42,6 +43,19 @@ var HexCell = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(HexCell.prototype, "enabled", {
+        get: function () {
+            return this._enabled;
+        },
+        set: function (value) {
+            if (this._enabled == value)
+                return;
+            this._enabled = value;
+            this.updateValue();
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(HexCell.prototype, "value", {
         get: function () {
             return this._value;
@@ -53,13 +67,22 @@ var HexCell = (function () {
             if (this._value == value)
                 return;
             this._value = value;
-            this.elementHex.innerText = ('00' + value.toString(16)).slice(-2).toUpperCase();
-            this.elementChar.innerText = CType.isPrint(value) ? String.fromCharCode(value) : '.';
-            this.row.editor.dirty();
+            this.updateValue();
         },
         enumerable: true,
         configurable: true
     });
+    HexCell.prototype.updateValue = function () {
+        if (this._enabled) {
+            this.elementHex.innerText = ('00' + this._value.toString(16)).slice(-2).toUpperCase();
+            this.elementChar.innerText = CType.isPrint(this._value) ? String.fromCharCode(this._value) : '.';
+        }
+        else {
+            this.elementHex.innerText = '  ';
+            this.elementChar.innerText = ' ';
+        }
+        this.row.editor.dirty();
+    };
     Object.defineProperty(HexCell.prototype, "selected", {
         get: function () {
             return this._selected;
@@ -79,20 +102,44 @@ var HexCell = (function () {
 var HexRowHead = (function () {
     function HexRowHead(row) {
         this.row = row;
+        this._enabled = false;
         this.element = $('<span class="head"></span>').get(0);
         this.value = 0;
     }
+    Object.defineProperty(HexRowHead.prototype, "enabled", {
+        get: function () {
+            return this._enabled;
+        },
+        set: function (value) {
+            if (this._enabled == value)
+                return;
+            this._enabled = value;
+            this.update();
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(HexRowHead.prototype, "value", {
         get: function () {
             return this._value;
         },
         set: function (value) {
+            if (this._value == value)
+                return;
             this._value = value;
-            this.element.innerText = ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+            this.update();
         },
         enumerable: true,
         configurable: true
     });
+    HexRowHead.prototype.update = function () {
+        if (this._enabled) {
+            this.element.innerText = ('00000000' + this._value.toString(16)).slice(-8).toUpperCase();
+        }
+        else {
+            this.element.innerText = '        ';
+        }
+    };
     return HexRowHead;
 })();
 var HexTextColumn = (function () {
@@ -389,8 +436,10 @@ var ArrayHexSource = (function () {
         configurable: true
     });
     ArrayHexSource.prototype.readAsync = function (offset, size) {
-        var out = new Uint8Array(size);
-        for (var n = 0; n < size; n++)
+        var size2 = Math.max(0, Math.min(size, this.length - offset));
+        //console.warn(offset, size, this.length, size2);
+        var out = new Uint8Array(size2);
+        for (var n = 0; n < out.length; n++)
             out[n] = this.data[offset + n];
         //return waitAsync(3000).then(() => { return out; });
         return Promise.resolve(out);
@@ -609,13 +658,22 @@ var HexEditor = (function () {
     HexEditor.prototype.updateCellsAsync = function () {
         var _this = this;
         var source = this._source;
-        return source.readAsync(this.offset, source.length).then(function (data) {
+        return source.readAsync(this.offset, this.columns * this.rows.length).then(function (data) {
             _this.rows.forEach(function (row, index) {
                 row.head.value = _this.offset + index * 16;
+                row.head.enabled = ((index * 16) < data.length);
+                row.cells.forEach(function (cell, offset) {
+                    if (cell.viewoffset < data.length) {
+                        cell.value = data[cell.viewoffset];
+                        cell.enabled = true;
+                    }
+                    else {
+                        cell.value = 0;
+                        cell.enabled = false;
+                    }
+                    //this.setByteAt(cell.globaloffset, );
+                });
             });
-            for (var n = 0; n < data.length; n++) {
-                _this.setByteAt(_this.localToGlobal(n), data[n]);
-            }
         });
     };
     HexEditor.prototype.localToGlobal = function (localoffset) {

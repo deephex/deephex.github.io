@@ -5,14 +5,32 @@ class AnalyzerMapperElement {
     constructor(public name:string, public type:string, public offset = 0, public bitoffset = 0, public bitcount = 0, public value = null, public representer?: ValueRepresenter) {
     }
 
-    getValueHtmlString() {
+    getValueHtmlString(editor:HexEditor) {
         if (this.value && this.value.toHtml) {
-            return this.value.toHtml();
+            return this.value.toHtml(editor);
         } else if (this.representer) {
             return this.representer.represent(this.value);
         } else {
             return htmlspecialchars(this.value);
         }
+    }
+}
+
+class HexChunk {
+    constructor(public data:number[]) {
+    }
+
+    toHtml(editor:HexEditor) {
+        var item = $('<span>');
+        item.append($('<span class="itemlink">[LOAD]</span>').click(e => {
+            e.cancelBubble = true;
+            e.preventDefault();
+            //alert(1);
+            editor.setData(new Uint8Array(this.data));
+            return false;
+        }));
+        item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        return item;
     }
 }
 
@@ -38,6 +56,10 @@ var BoolRepresenter = new ValueRepresenter((value:number) => {
 
 var HexRepresenter = new ValueRepresenter((value:number) => {
     return '0x' + ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+});
+
+var ErrorRepresenter = new ValueRepresenter((value:any) => {
+    return '<span style="color:red;">' + value + '</span>';
 });
 
 var CharRepresenter = new ValueRepresenter((value:number) => {
@@ -88,6 +110,7 @@ class AnalyzerMapperPlugins {
             try {
                 AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
             } catch (_e) {
+                mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
                 e = _e;
             }
@@ -236,7 +259,7 @@ class AnalyzerMapperRenderer {
         var title = $('<div class="treetitle">');
         var type = $('<span class="treetitletype">').text(element.type);
         var name = $('<span class="treetitlename">').text(element.name);
-        var value = $('<span class="treetitlevalue">').html(element.getValueHtmlString());
+        var value = $('<span class="treetitlevalue">').append(element.getValueHtmlString(this.editor));
         title.append(type, name, value);
         e.append(title);
 

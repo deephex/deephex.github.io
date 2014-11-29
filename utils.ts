@@ -76,15 +76,6 @@ class HexImage {
     }
 }
 
-class HexChunk {
-    constructor(public data:number[]) {
-    }
-
-    toHtml() {
-        return 'HexChunk[' + this.data.length + '](' + htmlspecialchars(CType.ensurePrintable(String.fromCharCode.apply(null, this.data))) + ')';
-    }
-}
-
 class HexRgb {
     constructor(public red:number, public green:number, public blue:number) {
     }

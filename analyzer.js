@@ -20,9 +20,9 @@ var AnalyzerMapperElement = (function () {
         this.value = value;
         this.representer = representer;
     }
-    AnalyzerMapperElement.prototype.getValueHtmlString = function () {
+    AnalyzerMapperElement.prototype.getValueHtmlString = function (editor) {
         if (this.value && this.value.toHtml) {
-            return this.value.toHtml();
+            return this.value.toHtml(editor);
         }
         else if (this.representer) {
             return this.representer.represent(this.value);
@@ -32,6 +32,25 @@ var AnalyzerMapperElement = (function () {
         }
     };
     return AnalyzerMapperElement;
+})();
+var HexChunk = (function () {
+    function HexChunk(data) {
+        this.data = data;
+    }
+    HexChunk.prototype.toHtml = function (editor) {
+        var _this = this;
+        var item = $('<span>');
+        item.append($('<span class="itemlink">[LOAD]</span>').click(function (e) {
+            e.cancelBubble = true;
+            e.preventDefault();
+            //alert(1);
+            editor.setData(new Uint8Array(_this.data));
+            return false;
+        }));
+        item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
+        return item;
+    };
+    return HexChunk;
 })();
 var ValueRepresenter = (function () {
     function ValueRepresenter(represent) {
@@ -55,6 +74,9 @@ var BoolRepresenter = new ValueRepresenter(function (value) {
 });
 var HexRepresenter = new ValueRepresenter(function (value) {
     return '0x' + ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+});
+var ErrorRepresenter = new ValueRepresenter(function (value) {
+    return '<span style="color:red;">' + value + '</span>';
 });
 var CharRepresenter = new ValueRepresenter(function (value) {
     return '0x' + ('0000' + value.toString(16)).slice(-4).toUpperCase() + " ('" + String.fromCharCode(value) + "')";
@@ -138,6 +160,7 @@ var AnalyzerMapperPlugins = (function () {
                 AnalyzerMapperPlugins.templates[name.toLowerCase()](mapper);
             }
             catch (_e) {
+                mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
                 e = _e;
             }
@@ -314,7 +337,7 @@ var AnalyzerMapperRenderer = (function () {
         var title = $('<div class="treetitle">');
         var type = $('<span class="treetitletype">').text(element.type);
         var name = $('<span class="treetitlename">').text(element.name);
-        var value = $('<span class="treetitlevalue">').html(element.getValueHtmlString());
+        var value = $('<span class="treetitlevalue">').append(element.getValueHtmlString(this.editor));
         title.append(type, name, value);
         e.append(title);
         title.mouseover(function (e) {

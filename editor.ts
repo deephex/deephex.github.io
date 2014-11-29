@@ -12,8 +12,8 @@ class HexCell {
     get globaloffset() { return this.row.editor.offset + this.viewoffset; }
 
     constructor(public row:HexRow, public column:number) {
-        this.elementHex = $('<span class="byte">00</span>').get(0);
-        this.elementChar = $('<span class="char">.</span>').get(0);
+        this.elementHex = $('<span class="byte">  </span>').get(0);
+        this.elementChar = $('<span class="char"> </span>').get(0);
         this.viewoffset = this.row.row * this.row.editor.columns + this.column;
         $(this.elementHex).click((e) => {
             this.row.editor.onCellClick.dispatch(this);
@@ -38,14 +38,35 @@ class HexCell {
         });
     }
 
+    _enabled = false;
+
+    set enabled(value:boolean) {
+        if (this._enabled == value) return;
+        this._enabled = value;
+        this.updateValue();
+    }
+
+    get enabled() {
+        return this._enabled;
+    }
+
     set value(value:number) {
         if (this._value == value) return;
         value = (value >>> 0) & 0xFF;
         if (this._value == value) return;
 
         this._value = value;
-        this.elementHex.innerText = ('00' + value.toString(16)).slice(-2).toUpperCase();
-        this.elementChar.innerText = CType.isPrint(value) ? String.fromCharCode(value) : '.';
+        this.updateValue();
+    }
+
+    private updateValue() {
+        if (this._enabled) {
+            this.elementHex.innerText = ('00' + this._value.toString(16)).slice(-2).toUpperCase();
+            this.elementChar.innerText = CType.isPrint(this._value) ? String.fromCharCode(this._value) : '.';
+        } else {
+            this.elementHex.innerText = '  ';
+            this.elementChar.innerText = ' ';
+        }
         this.row.editor.dirty();
     }
 
@@ -75,13 +96,31 @@ class HexRowHead {
         this.value = 0;
     }
 
+    _enabled = false;
+
+    set enabled(value:boolean) {
+        if (this._enabled == value) return;
+        this._enabled = value;
+        this.update();
+    }
+    get enabled() { return this._enabled; }
+
     set value(value:number) {
+        if (this._value == value) return;
         this._value = value;
-        this.element.innerText = ('00000000' + value.toString(16)).slice(-8).toUpperCase();
+        this.update();
     }
 
     get value() {
         return this._value;
+    }
+
+    private update() {
+        if (this._enabled) {
+            this.element.innerText = ('00000000' + this._value.toString(16)).slice(-8).toUpperCase();
+        } else {
+            this.element.innerText = '        ';
+        }
     }
 }
 
@@ -284,8 +323,10 @@ class ArrayHexSource implements HexSource {
     }
 
     readAsync(offset:number, size:number) {
-        var out = new Uint8Array(size);
-        for (var n = 0; n < size; n++) out[n] = this.data[offset + n];
+        var size2 = Math.max(0, Math.min(size, this.length - offset));
+        //console.warn(offset, size, this.length, size2);
+        var out = new Uint8Array(size2);
+        for (var n = 0; n < out.length; n++) out[n] = this.data[offset + n];
         //return waitAsync(3000).then(() => { return out; });
         return Promise.resolve(out);
     }
@@ -344,14 +385,21 @@ class HexEditor {
 
     updateCellsAsync() {
         var source = this._source;
-        return source.readAsync(this.offset, source.length).then((data) => {
+        return source.readAsync(this.offset, this.columns * this.rows.length).then((data) => {
             this.rows.forEach((row, index) => {
                 row.head.value = this.offset + index * 16;
+                row.head.enabled = ((index * 16) < data.length);
+                row.cells.forEach((cell, offset) => {
+                    if (cell.viewoffset < data.length) {
+                        cell.value = data[cell.viewoffset];
+                        cell.enabled = true;
+                    } else {
+                        cell.value = 0;
+                        cell.enabled = false;
+                    }
+                    //this.setByteAt(cell.globaloffset, );
+                });
             });
-
-            for (var n = 0; n < data.length; n++) {
-                this.setByteAt(this.localToGlobal(n), data[n]);
-            }
         });
     }
 

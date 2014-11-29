@@ -6,20 +6,10 @@
 // http://www.gzip.org/zlib/rfc-deflate.html
 
 class HuffmanNode {
-    get isLeaf() {
-        return this.len != 0;
-    }
-
-    constructor(public value:number, public len:number, public left:HuffmanNode, public right:HuffmanNode) {
-    }
-
-    static leaf(value:number, len:number) {
-        return new HuffmanNode(value, len, null, null);
-    }
-
-    static internal(left:HuffmanNode, right:HuffmanNode) {
-        return new HuffmanNode(-1, 0, left, right);
-    }
+    get isLeaf() { return this.len != 0; }
+    constructor(public value:number, public len:number, public left:HuffmanNode, public right:HuffmanNode) { }
+    static leaf(value:number, len:number) { return new HuffmanNode(value, len, null, null); }
+    static internal(left:HuffmanNode, right:HuffmanNode) { return new HuffmanNode(-1, 0, left, right); }
 }
 
 interface BitReader {
@@ -250,6 +240,10 @@ AnalyzerMapperPlugins.register('DEFLATE', (m:AnalyzerMapper) => {
                         var tree = fixedtree;
                         var dist = fixeddist;
                     } else {
+                        var numLitLenCodes = m.readBits(5) + 257;  // hlit  + 257
+                        var numDistCodes = m.readBits(5) + 1;      // hdist +   1
+                        var numCodeLenCodes = m.readBits(4) + 4;   // hclen +   4
+
                         throw new Error("unsupported btype=2!");
                     }
                     var completed = false;

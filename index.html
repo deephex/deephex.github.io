@@ -123,6 +123,14 @@
         .treeelement .treechildren.expanded {
             display: block;
         }
+        .itemlink {
+            color:blue;
+            margin-right:1em;
+            cursor: pointer;
+        }
+        .itemlink:hover {
+            text-decoration: underline;
+        }
         .hexrgbsample {
             background-size:100% 100%;
             width: 1em;
@@ -145,7 +153,8 @@
     <script type="text/javascript">
         var editor = HexEditor.convert(document.getElementById("hexcontainer"));
         var tools = new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);
-        tools.loadsample6();
+        //tools.loadsample6();
+        tools.loadsample5();
     </script>
 
 </body>
