@@ -50,6 +50,9 @@ AnalyzerMapperPlugins.register('PNG', function (m) {
                             bitcount++;
                         }
                         break;
+                    case 'IDAT':
+                        m.chunk('content', m.available);
+                        break;
                     case 'PLTE':
                         var colorCount = 0;
                         while (m.available > 0) {

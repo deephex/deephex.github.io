@@ -142,14 +142,18 @@
 </head>
 <body>
     <div id="hextools"></div>
-    <div>
-        <div style="display:inline-block;height:600px;width:320px;overflow:auto;">
-            <div id="hexoutput"></div>
-        </div>
-        <div style="display:inline-block;height:400px;">
-            <div id="hexcontainer" class="hex"></div>
-        </div>
-    </div>
+    <table style="width:100%;">
+        <tr>
+            <td align="left" valign="top" style="width:320px;">
+                <div style="width:320px;overflow:auto;height:600px;">
+                    <div id="hexoutput"></div>
+                </div>
+            </td>
+            <td align="left" valign="top" style="width:auto;">
+                <div id="hexcontainer" class="hex"></div>
+            </td>
+        </tr>
+    </table>
     <script type="text/javascript">
         var editor = HexEditor.convert(document.getElementById("hexcontainer"));
         var tools = new HexTools(document.getElementById("hextools"), document.getElementById("hexoutput"), editor);

@@ -13,7 +13,7 @@ var HexCell = (function () {
         this._selected = false;
         this.elementHex = $('<span class="byte">  </span>').get(0);
         this.elementChar = $('<span class="char"> </span>').get(0);
-        this.viewoffset = this.row.row * this.row.editor.columns + this.column;
+        this.viewoffset = this.row.row * this.row.editor.columnCount + this.column;
         $(this.elementHex).click(function (e) {
             _this.row.editor.onCellClick.dispatch(_this);
         });
@@ -202,7 +202,7 @@ var HexCursor = (function () {
     };
     HexCursor.prototype.moveLeft = function () {
         if (this.isInFirstColumn) {
-            this.moveTo(this.editor.columns - 1, this.row - 1);
+            this.moveTo(this.editor.columnCount - 1, this.row - 1);
         }
         else {
             this.moveBy(-1, 0);
@@ -218,7 +218,7 @@ var HexCursor = (function () {
     };
     HexCursor.prototype.moveUp = function () {
         if (this.isInFirstRow) {
-            this.editor.moveViewBy(-this.editor.columns);
+            this.editor.moveViewBy(-this.editor.columnCount);
         }
         else {
             this.moveBy(0, -1);
@@ -226,7 +226,7 @@ var HexCursor = (function () {
     };
     HexCursor.prototype.moveDown = function () {
         if (this.isInLastRow) {
-            this.editor.moveViewBy(+this.editor.columns);
+            this.editor.moveViewBy(+this.editor.columnCount);
         }
         else {
             this.moveBy(0, +1);
@@ -248,7 +248,7 @@ var HexCursor = (function () {
     });
     Object.defineProperty(HexCursor.prototype, "isInLastColumn", {
         get: function () {
-            return this.column == this.editor.columns - 1;
+            return this.column == this.editor.columnCount - 1;
         },
         enumerable: true,
         configurable: true
@@ -460,13 +460,13 @@ var HexEditor = (function () {
         this._encoder = new TextDecoderEncoding('utf-8');
         this.onMove = new Signal();
         this.offset = 0;
-        this.columns = 16;
+        this.columnCount = 16;
         this._dirty = false;
         this._dirtyExec = -1;
         this.hotkeys = [];
         this.cursor = new HexCursor(this);
         for (var n = 0; n < 32; n++) {
-            var row = HexRow.create(this, n, this.columns);
+            var row = HexRow.create(this, n, this.columnCount);
             this.rows[n] = row;
             $(element).append(row.html);
         }
@@ -504,7 +504,7 @@ var HexEditor = (function () {
             deltaWheel += ee.deltaY;
             var deltaWheelInt = Math.floor(deltaWheel / 10);
             if (Math.abs(deltaWheelInt) >= 1) {
-                _this.moveViewBy(deltaWheelInt * _this.columns);
+                _this.moveViewBy(deltaWheelInt * _this.columnCount);
                 deltaWheel = 0;
             }
             e.preventDefault();
@@ -637,14 +637,34 @@ var HexEditor = (function () {
     });
     Object.defineProperty(HexEditor.prototype, "visiblerange", {
         get: function () {
-            return new HexSelection(this, this.offset, this.offset + this.columns * this.rows.length);
+            return new HexSelection(this, this.offset, this.offset + this.columnCount * this.rows.length);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexEditor.prototype, "rowsCount", {
+        get: function () {
+            return this.rows.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexEditor.prototype, "totalbytesinview", {
+        get: function () {
+            return this.columnCount * this.rowsCount;
         },
         enumerable: true,
         configurable: true
     });
     HexEditor.prototype.ensureViewVisibleRange = function (globaloffset) {
         if (!this.visiblerange.contains(globaloffset)) {
-            this.moveViewTo(Math.floor(globaloffset / this.columns) * this.columns);
+            //this.offset
+            if (this.offset < globaloffset) {
+                this.moveViewTo(MathUtils.floorMultiple(globaloffset - this.totalbytesinview + this.columnCount, this.columnCount));
+            }
+            else {
+                this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
+            }
         }
     };
     HexEditor.prototype.moveViewBy = function (doffset) {
@@ -658,7 +678,7 @@ var HexEditor = (function () {
     HexEditor.prototype.updateCellsAsync = function () {
         var _this = this;
         var source = this._source;
-        return source.readAsync(this.offset, this.columns * this.rows.length).then(function (data) {
+        return source.readAsync(this.offset, this.columnCount * this.rows.length).then(function (data) {
             _this.rows.forEach(function (row, index) {
                 row.head.value = _this.offset + index * 16;
                 row.head.enabled = ((index * 16) < data.length);
@@ -694,7 +714,7 @@ var HexEditor = (function () {
     });
     HexEditor.prototype.getCell2 = function (globaloffset) {
         var offset = globaloffset - this.offset;
-        return this.getCell(Math.floor(offset % this.columns), Math.floor(offset / this.columns));
+        return this.getCell(Math.floor(offset % this.columnCount), Math.floor(offset / this.columnCount));
     };
     HexEditor.prototype.getByteAt = function (globaloffset) {
         return this.getCell2(globaloffset).value;

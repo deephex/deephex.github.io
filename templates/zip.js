@@ -18,6 +18,30 @@ AnalyzerMapperPlugins.register('ZIP', function (m) {
     m.node.name = 'zip';
     m.little = true;
     var entrycount = 0;
+    var CompressionMethodEnum = EnumRepresenter({
+        0: 'stored',
+        1: 'shrunk',
+        2: 'factor1',
+        3: 'factor2',
+        4: 'factor3',
+        5: 'factor4',
+        6: 'imploded',
+        7: 'tokeniginzg',
+        8: 'deflate',
+        9: 'deflate64',
+        10: 'ibm_terse_old',
+        11: 'reserved_11',
+        12: 'bzip2',
+        13: 'reserved_13',
+        14: 'lzma',
+        15: 'reserved_15',
+        16: 'reserved_16',
+        17: 'reserved_17',
+        18: 'ibm_terse_new',
+        19: 'ibm_lz77',
+        97: 'wavpack',
+        98: 'ppmd'
+    });
     while (m.available > 0) {
         m.struct('entry', function (node) {
             var magic = m.str('magic', 2);
@@ -35,7 +59,7 @@ AnalyzerMapperPlugins.register('ZIP', function (m) {
                     m.u16('version_used');
                     m.u16('version_extract');
                     m.u16('flags');
-                    m.u16('compression_method');
+                    m.u16('compression_method', CompressionMethodEnum);
                     m.u16('file_time', DOS_TIME_ValueRepresenter);
                     m.u16('file_date', DOS_DATE_ValueRepresenter);
                     m.u32('crc32', HexRepresenter);
@@ -58,7 +82,7 @@ AnalyzerMapperPlugins.register('ZIP', function (m) {
                     entrycount++;
                     m.u16('version_extract');
                     m.u16('flags');
-                    m.u16('compression_method');
+                    m.u16('compression_method', CompressionMethodEnum);
                     m.u16('file_time', DOS_TIME_ValueRepresenter);
                     m.u16('file_date', DOS_DATE_ValueRepresenter);
                     m.u32('crc32', HexRepresenter);
@@ -68,7 +92,7 @@ AnalyzerMapperPlugins.register('ZIP', function (m) {
                     var extrafield_length = m.u16('extrafield_length');
                     var filename = m.str('filename', filename_length);
                     m.subs('extra', extrafield_length);
-                    m.subs('content', compressed_size);
+                    m.chunk('content', compressed_size);
                     return filename;
                     break;
                 case 0x0605:

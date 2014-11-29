@@ -22,6 +22,21 @@ var HexTools = (function () {
         $(element).append($('<select>' + ['little-endian', 'big-endian'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
             _this.little = (('' + $(e.target).val()).indexOf('little') >= 0);
         }));
+        $(document).on('copy', function (e) {
+            _this.copy();
+            if (window.clipboardData) {
+                window.clipboardData.setData("Text", "My clipboard data");
+            }
+            e.stopPropagation();
+            e.preventDefault();
+        });
+        $(document).on('paste', function (e) {
+            var clipbardData = e.originalEvent.clipboardData.getData('text/plain');
+            //console.log(clipbardData);
+            _this.paste(clipbardData);
+            e.stopPropagation();
+            e.preventDefault();
+        });
         editor.addHotkeys(['shift+0'], function () {
             _this.zero();
         });
@@ -30,6 +45,12 @@ var HexTools = (function () {
         });
         editor.addHotkeys(['cmd+a'], function () {
             _this.selectAll();
+        });
+        editor.addHotkeys(['t'], function () {
+            _this.text();
+        });
+        editor.addHotkeys(['r'], function () {
+            _this.random();
         });
         editor.addHotkeys(['minus'], function () {
             _this.increment(-1);
@@ -40,13 +61,13 @@ var HexTools = (function () {
         editor.addHotkeys(['backspace'], function () {
             _this.zero();
         });
-        $(element).append($('<input type="button" value="invert" />').click(function () {
+        $(element).append($('<input type="button" value="invert (cmd+i)" />').click(function () {
             _this.invert();
         }));
-        $(element).append($('<input type="button" value="decrement" />').click(function () {
+        $(element).append($('<input type="button" value="decrement (-)" />').click(function () {
             _this.increment(-1);
         }));
-        $(element).append($('<input type="button" value="increment" />').click(function () {
+        $(element).append($('<input type="button" value="increment (+)" />').click(function () {
             _this.increment(1);
         }));
         $(element).append($('<input type="button" value="rotate left" />').click(function () {
@@ -58,16 +79,16 @@ var HexTools = (function () {
         $(element).append($('<input type="button" value="create scale" />').click(function () {
             _this.createScale(1, 0);
         }));
-        $(element).append($('<input type="button" value="random" />').click(function () {
+        $(element).append($('<input type="button" value="random (r)" />').click(function () {
             _this.random();
         }));
-        $(element).append($('<input type="button" value="zero" />').click(function () {
+        $(element).append($('<input type="button" value="zero (backspace)" />').click(function () {
             _this.zero();
         }));
         $(element).append($('<input type="button" value="select all" />').click(function () {
             _this.selectAll();
         }));
-        $(element).append($('<input type="button" value="text" />').click(function () {
+        $(element).append($('<input type="button" value="text (t)" />').click(function () {
             _this.text();
         }));
         $(element).append($('<input type="button" value="str_rot13" />').click(function () {
@@ -124,6 +145,10 @@ var HexTools = (function () {
         enumerable: true,
         configurable: true
     });
+    HexTools.prototype.paste = function (data) {
+    };
+    HexTools.prototype.copy = function () {
+    };
     HexTools.prototype._loadsample = function (name, type) {
         var _this = this;
         download(name, function (data) {

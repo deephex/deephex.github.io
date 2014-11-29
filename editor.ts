@@ -14,7 +14,7 @@ class HexCell {
     constructor(public row:HexRow, public column:number) {
         this.elementHex = $('<span class="byte">  </span>').get(0);
         this.elementChar = $('<span class="char"> </span>').get(0);
-        this.viewoffset = this.row.row * this.row.editor.columns + this.column;
+        this.viewoffset = this.row.row * this.row.editor.columnCount + this.column;
         $(this.elementHex).click((e) => {
             this.row.editor.onCellClick.dispatch(this);
         });
@@ -190,7 +190,7 @@ class HexCursor {
 
     moveLeft() {
         if (this.isInFirstColumn) {
-            this.moveTo(this.editor.columns - 1, this.row - 1);
+            this.moveTo(this.editor.columnCount - 1, this.row - 1);
         } else {
             this.moveBy(-1, 0);
         }
@@ -204,14 +204,14 @@ class HexCursor {
     }
     moveUp() {
         if (this.isInFirstRow) {
-            this.editor.moveViewBy(-this.editor.columns);
+            this.editor.moveViewBy(-this.editor.columnCount);
         } else {
             this.moveBy(0, -1);
         }
     }
     moveDown() {
         if (this.isInLastRow) {
-            this.editor.moveViewBy(+this.editor.columns);
+            this.editor.moveViewBy(+this.editor.columnCount);
         } else {
             this.moveBy(0, +1);
         }
@@ -219,7 +219,7 @@ class HexCursor {
 
     get isInFirstColumn() { return this.column == 0; }
     get isInFirstRow() { return this.row == 0; }
-    get isInLastColumn() { return this.column == this.editor.columns - 1; }
+    get isInLastColumn() { return this.column == this.editor.columnCount - 1; }
     get isInLastRow() { return this.row == this.editor.rows.length - 1; }
 
     moveNext() {
@@ -364,12 +364,23 @@ class HexEditor {
     offset = 0;
 
     get visiblerange() {
-        return new HexSelection(this, this.offset, this.offset + this.columns * this.rows.length);
+        return new HexSelection(this, this.offset, this.offset + this.columnCount * this.rows.length);
+    }
+
+    get rowsCount() { return this.rows.length; }
+
+    get totalbytesinview() {
+        return this.columnCount * this.rowsCount;
     }
 
     ensureViewVisibleRange(globaloffset:number) {
         if (!this.visiblerange.contains(globaloffset)) {
-            this.moveViewTo(Math.floor(globaloffset / this.columns) * this.columns);
+            //this.offset
+            if (this.offset < globaloffset) {
+                this.moveViewTo(MathUtils.floorMultiple(globaloffset - this.totalbytesinview + this.columnCount, this.columnCount));
+            } else {
+                this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
+            }
         }
     }
 
@@ -385,7 +396,7 @@ class HexEditor {
 
     updateCellsAsync() {
         var source = this._source;
-        return source.readAsync(this.offset, this.columns * this.rows.length).then((data) => {
+        return source.readAsync(this.offset, this.columnCount * this.rows.length).then((data) => {
             this.rows.forEach((row, index) => {
                 row.head.value = this.offset + index * 16;
                 row.head.enabled = ((index * 16) < data.length);
@@ -420,8 +431,8 @@ class HexEditor {
     getCell2(globaloffset:number) {
         var offset = globaloffset - this.offset;
         return this.getCell(
-            Math.floor(offset % this.columns),
-            Math.floor(offset / this.columns)
+            Math.floor(offset % this.columnCount),
+            Math.floor(offset / this.columnCount)
         );
     }
 
@@ -460,13 +471,13 @@ class HexEditor {
         return this._encoder;
     }
 
-    columns = 16;
+    columnCount = 16;
 
     constructor(public element:HTMLElement) {
         this.cursor = new HexCursor(this);
 
         for (var n = 0; n < 32; n++) {
-            var row = HexRow.create(this, n, this.columns);
+            var row = HexRow.create(this, n, this.columnCount);
             this.rows[n] = row;
             $(element).append(row.html);
         }
@@ -513,7 +524,7 @@ class HexEditor {
             deltaWheel += ee.deltaY;
             var deltaWheelInt = Math.floor(deltaWheel / 10);
             if (Math.abs(deltaWheelInt) >= 1) {
-                this.moveViewBy(deltaWheelInt * this.columns);
+                this.moveViewBy(deltaWheelInt * this.columnCount);
                 deltaWheel = 0;
             }
             e.preventDefault();

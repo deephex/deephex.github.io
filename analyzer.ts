@@ -23,7 +23,7 @@ class HexChunk {
     toHtml(editor:HexEditor) {
         var item = $('<span>');
         item.append($('<span class="itemlink">[LOAD]</span>').click(e => {
-            e.cancelBubble = true;
+            e.stopPropagation();
             e.preventDefault();
             //alert(1);
             editor.setData(new Uint8Array(this.data));
@@ -165,6 +165,12 @@ class AnalyzerMapper {
         return readed;
     }
 
+    readBytes(count:number) {
+        var out = [];
+        for (var n = 0; n < count; n++) out.push(this.readByte());
+        return out;
+    }
+
     bits(name: string, bitcount:number, representer?: ValueRepresenter) {
         var offset = this.bitsoffset;
         var value = this.readBits(bitcount);
@@ -181,6 +187,8 @@ class AnalyzerMapper {
     set name(v:string) { this.node.name = v; }
     set value(v:any) { this.node.value = v; }
 
+    get globaloffset() { return this.addoffset + this.offset; }
+
     u8(name:string, representer?: ValueRepresenter) { return this._read(name, 'u8', 1, offset => this.data.getUint8(offset), representer); }
     u16(name:string, representer?: ValueRepresenter) { return this._read(name, 'u16', 2, offset => this.data.getUint16(offset, this.little), representer); }
     u32(name:string, representer?: ValueRepresenter) { return this._read(name, 'u32', 4, offset => this.data.getUint32(offset, this.little), representer); }
@@ -188,7 +196,7 @@ class AnalyzerMapper {
         var textData = new Uint8Array(count);
         for (var n = 0; n < count; n++) textData[n] = this.data.getUint8(this.offset + n);
         var value = new TextDecoder(encoding).decode(textData);
-        this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', this.addoffset + this.offset, 0, 8 * count, value));
+        this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', this.globaloffset, 0, 8 * count, value));
         this.offset += count;
         return value;
     }
@@ -212,6 +220,12 @@ class AnalyzerMapper {
             mapper.node.value = result;
         }
         return mapper;
+    }
+    chunk(name:string, count:number, representer?: ValueRepresenter) {
+        var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
+        element.value = new HexChunk(this.readBytes(count));
+        this.node.elements.push(element);
+        return element;
     }
 
     struct(name:string, callback: (node?:AnalyzerMapperNode) => void, expanded:boolean = true) {

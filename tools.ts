@@ -22,22 +22,39 @@ class HexTools {
         $(element).append($('<select>' + ['little-endian', 'big-endian'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
             this.little = (('' + $(e.target).val()).indexOf('little') >= 0);
         }));
+        $(document).on('copy', e => {
+            this.copy();
+            if (window.clipboardData) {
+                window.clipboardData.setData ("Text", "My clipboard data");
+            }
+            e.stopPropagation();
+            e.preventDefault();
+        });
+        $(document).on('paste', e => {
+            var clipbardData = (<any>e.originalEvent).clipboardData.getData('text/plain');
+            //console.log(clipbardData);
+            this.paste(clipbardData);
+            e.stopPropagation();
+            e.preventDefault();
+        });
         editor.addHotkeys(['shift+0'], () => { this.zero(); });
         editor.addHotkeys(['cmd+i'], () => { this.invert(); });
         editor.addHotkeys(['cmd+a'], () => { this.selectAll(); });
+        editor.addHotkeys(['t'], () => { this.text(); });
+        editor.addHotkeys(['r'], () => { this.random(); });
         editor.addHotkeys(['minus'], () => { this.increment(-1); });
         editor.addHotkeys(['plus'], () => { this.increment(1); });
         editor.addHotkeys(['backspace'], () => { this.zero(); });
-        $(element).append($('<input type="button" value="invert" />').click(() => { this.invert(); }));
-        $(element).append($('<input type="button" value="decrement" />').click(() => { this.increment(-1); }));
-        $(element).append($('<input type="button" value="increment" />').click(() => { this.increment(1); }));
+        $(element).append($('<input type="button" value="invert (cmd+i)" />').click(() => { this.invert(); }));
+        $(element).append($('<input type="button" value="decrement (-)" />').click(() => { this.increment(-1); }));
+        $(element).append($('<input type="button" value="increment (+)" />').click(() => { this.increment(1); }));
         $(element).append($('<input type="button" value="rotate left" />').click(() => { this.rotate(-1); }));
         $(element).append($('<input type="button" value="rotate right" />').click(() => { this.rotate(+1); }));
         $(element).append($('<input type="button" value="create scale" />').click(() => { this.createScale(1, 0); }));
-        $(element).append($('<input type="button" value="random" />').click(() => { this.random(); }));
-        $(element).append($('<input type="button" value="zero" />').click(() => { this.zero(); }));
+        $(element).append($('<input type="button" value="random (r)" />').click(() => { this.random(); }));
+        $(element).append($('<input type="button" value="zero (backspace)" />').click(() => { this.zero(); }));
         $(element).append($('<input type="button" value="select all" />').click(() => { this.selectAll(); }));
-        $(element).append($('<input type="button" value="text" />').click(() => { this.text(); }));
+        $(element).append($('<input type="button" value="text (t)" />').click(() => { this.text(); }));
         $(element).append($('<input type="button" value="str_rot13" />').click(() => { this.rot13(); }));
         $(element).append($('<input type="button" value="upper" />').click(() => { this.upper(); }));
         $(element).append($('<input type="button" value="lower" />').click(() => { this.lower(); }));
@@ -58,6 +75,14 @@ class HexTools {
             info.text('column:' + cursor.column + ",cell:" + cursor.row + ',offset:' + cursor.viewoffset + ",selection=" + cursor.selection.length);
         });
         editor.update();
+    }
+
+    paste(data: any) {
+
+    }
+
+    copy() {
+
     }
 
     private _loadsample(name:string, type:string) {
@@ -242,3 +267,6 @@ class HexTools {
         this.iterateSelection(value => 0);
     }
 }
+
+
+
