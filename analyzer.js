@@ -47,7 +47,13 @@ var HexChunk = (function () {
             e.preventDefault();
             //alert(1);
             editor.setData(new Uint8Array(_this.data));
-            AnalyzerMapperPlugins.runAsync(_this.type, editor);
+            AnalyzerMapperPlugins.runAsync(_this.type, editor).then(function (result) {
+                console.log(result.node);
+                if (result.error)
+                    console.error(result.error);
+                $('#hexoutput').html('');
+                $('#hexoutput').append(result.element);
+            });
             return false;
         }));
         //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
@@ -150,22 +156,49 @@ var AnalyzerMapperNode = (function (_super) {
     });
     return AnalyzerMapperNode;
 })(AnalyzerMapperElement);
+var AnalyzerMapperPlugin = (function () {
+    function AnalyzerMapperPlugin(name, detect, analyze) {
+        this.name = name;
+        this.detect = detect;
+        this.analyze = analyze;
+    }
+    return AnalyzerMapperPlugin;
+})();
 var AnalyzerMapperPlugins = (function () {
     function AnalyzerMapperPlugins() {
     }
-    AnalyzerMapperPlugins.register = function (name, callback) {
-        AnalyzerMapperPlugins.templates[name.toLowerCase()] = callback;
+    AnalyzerMapperPlugins.registerPlugin = function (plugin) {
+        var name = plugin.name = String(plugin.name).toLowerCase();
+        console.log('registered plugin', name.toLowerCase(), plugin);
+        this.templates[name.toLowerCase()] = plugin;
+    };
+    AnalyzerMapperPlugins.register = function (name, detect, analyze) {
+        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
     };
     AnalyzerMapperPlugins.runAsync = function (name, editor) {
         return editor.getDataAsync().then(function (data) {
             name = String(name).toLowerCase();
-            var mapper = new AnalyzerMapper(new DataView(data.buffer));
+            var dataview = new DataView(data.buffer);
+            var mapper = new AnalyzerMapper(dataview);
             var e;
+            if (name == 'autodetect') {
+                try {
+                    var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map(function (v, k) {
+                        return { name: v.name, priority: v.detect(dataview) };
+                    }), function (v) { return v.priority; }).reverse();
+                    console.log(JSON.stringify(items));
+                    var item = items[0];
+                    name = item.name;
+                }
+                catch (e) {
+                    console.error(e);
+                }
+            }
             var template = AnalyzerMapperPlugins.templates[name];
             try {
                 if (!template)
                     throw new Error("Can't find template '" + name + "'");
-                template(mapper);
+                template.analyze(mapper);
             }
             catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));

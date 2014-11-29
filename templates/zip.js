@@ -14,7 +14,9 @@ var DOS_DATE_ValueRepresenter = new ValueRepresenter(function (dostime) {
     var day = (dostime >>> 0) & 0x1f;
     return strpad_left(String(day), '0', 2) + '/' + strpad_left(String(month), '0', 2) + '/' + strpad_left(String(year), '0', 4);
 });
-AnalyzerMapperPlugins.register('ZIP', function (m) {
+AnalyzerMapperPlugins.register('ZIP', function (data) {
+    return (String.fromCharCode(data.getUint8(0), data.getUint8(1)) == 'PK') ? 1 : 0;
+}, function (m) {
     m.node.name = 'zip';
     m.little = true;
     var entrycount = 0;

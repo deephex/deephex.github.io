@@ -17,7 +17,11 @@ var DOS_DATE_ValueRepresenter = new ValueRepresenter((dostime: number) => {
     return strpad_left(String(day), '0', 2) + '/' + strpad_left(String(month), '0', 2) + '/' + strpad_left(String(year), '0', 4);
 });
 
-AnalyzerMapperPlugins.register('ZIP', (m:AnalyzerMapper) => {
+AnalyzerMapperPlugins.register('ZIP',
+    (data:DataView) => {
+        return (String.fromCharCode(data.getUint8(0), data.getUint8(1)) == 'PK') ? 1 : 0;
+    },
+    (m:AnalyzerMapper) => {
     m.node.name = 'zip';
     m.little = true;
     var entrycount = 0;

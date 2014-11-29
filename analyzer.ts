@@ -27,7 +27,12 @@ class HexChunk {
             e.preventDefault();
             //alert(1);
             editor.setData(new Uint8Array(this.data));
-            AnalyzerMapperPlugins.runAsync(this.type, editor);
+            AnalyzerMapperPlugins.runAsync(this.type, editor).then(result => {
+                console.log(result.node);
+                if (result.error) console.error(result.error);
+                $('#hexoutput').html('');
+                $('#hexoutput').append(result.element);
+            });
             return false;
         }));
         //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
@@ -98,22 +103,51 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
     }
 }
 
-class AnalyzerMapperPlugins {
-    static templates: StringDictionary<(mapper:AnalyzerMapper) => void> = {};
+class AnalyzerMapperPlugin {
+    constructor(public name:string, public detect:(data:DataView) => number, public analyze:(mapper:AnalyzerMapper) => void) {
+    }
+}
 
-    static register(name:string, callback:(mapper:AnalyzerMapper) => void) {
-        AnalyzerMapperPlugins.templates[name.toLowerCase()] = callback;
+class AnalyzerMapperPlugins {
+    static templates: StringDictionary<AnalyzerMapperPlugin> = {};
+
+    static registerPlugin(plugin:AnalyzerMapperPlugin) {
+        var name = plugin.name = String(plugin.name).toLowerCase();
+        console.log('registered plugin', name.toLowerCase(), plugin);
+        this.templates[name.toLowerCase()] = plugin;
+    }
+
+    static register(name:string, detect:(data:DataView) => number, analyze:(mapper:AnalyzerMapper) => void) {
+        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
     }
 
     static runAsync(name: string, editor:HexEditor) {
         return editor.getDataAsync().then(data => {
             name = String(name).toLowerCase();
-            var mapper = new AnalyzerMapper(new DataView(data.buffer));
+            var dataview = new DataView(data.buffer);
+            var mapper = new AnalyzerMapper(dataview);
             var e:any;
-            var template = AnalyzerMapperPlugins.templates[name];
+            if (name == 'autodetect') {
+                try {
+                    var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map((v, k) => {
+                        return { name: v.name, priority: v.detect(dataview) };
+                    }), v => v.priority).reverse();
+
+                    console.log(JSON.stringify(items));
+
+                    var item = items[0];
+                    name = item.name;
+                    //items.sort(v => v.priority)
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            var template = <AnalyzerMapperPlugin>AnalyzerMapperPlugins.templates[name];
+
             try {
                 if (!template) throw new Error("Can't find template '" + name + "'");
-                template(mapper);
+                template.analyze(mapper);
             } catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);

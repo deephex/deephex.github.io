@@ -3,7 +3,9 @@
 ///<reference path="../tools.ts" />
 ///<reference path="../analyzer.ts" />
 // http://www.gzip.org/zlib/rfc-deflate.html
-AnalyzerMapperPlugins.register('DEFLATE', function (m) {
+AnalyzerMapperPlugins.register('DEFLATE', function (data) {
+    return 0.1;
+}, function (m) {
     m.node.name = 'deflate';
     var lengths0 = new Array(287);
     for (var n = 0; n <= 143; n++)
@@ -118,7 +120,7 @@ AnalyzerMapperPlugins.register('DEFLATE', function (m) {
                             });
                             for (var i = 0; i < HCLEN; i++)
                                 codeLenCodeLen[HCLENPOS[i]] = m.readBits(3);
-                            console.info(codeLenCodeLen);
+                            //console.info(codeLenCodeLen);
                             var codeLen = HuffmanTree.fromLengths(codeLenCodeLen);
                             var lengths = Array.apply(null, new Array(HLIT + HDIST));
                             var n = 0;

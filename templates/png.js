@@ -2,7 +2,13 @@
 ///<reference path="../utils.ts" />
 ///<reference path="../tools.ts" />
 ///<reference path="../analyzer.ts" />
-AnalyzerMapperPlugins.register('PNG', function (m) {
+AnalyzerMapperPlugins.register('PNG', function (data) {
+    if (data.getUint8(0) != 0x89)
+        return 0;
+    if (String.fromCharCode(data.getUint8(1), data.getUint8(2), data.getUint8(3)) != 'PNG')
+        return 0;
+    return 1;
+}, function (m) {
     m.name = 'png';
     m.value = new HexImage(m.data.buffer);
     m.little = false;
