@@ -26,7 +26,7 @@ class AnalyzerType {
 }
 
 class HexChunk {
-    constructor(public data:number[], public type?:AnalyzerType) {
+    constructor(public source:HexSource, public type?:AnalyzerType) {
         if (!this.type) this.type = new AnalyzerType('autodetect');
     }
 
@@ -36,7 +36,7 @@ class HexChunk {
             e.stopPropagation();
             e.preventDefault();
             //alert(1);
-            editor.setData(new Uint8Array(this.data));
+            editor.source = this.source;
             AnalyzerMapperPlugins.runAsync(this.type, editor).then(result => {
                 console.log(result.node);
                 if (result.error) console.error(result.error);
@@ -46,7 +46,7 @@ class HexChunk {
             return false;
         }));
         //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
-        item.append('HexChunk[' + this.data.length + '](' + this.type + ')');
+        item.append('HexChunk[' + this.source.length + '](' + this.type + ')');
         return item;
     }
 }
@@ -108,13 +108,13 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
         return this.first.bitoffset;
     }
     get bitcount() {
-        if (!this.scount) return 0;
+        if (!this.hasElements) return this.scount;
         return (this.last.offset - this.offset) * 8 + this.last.bitcount;
     }
 }
 
 class AnalyzerMapperPlugin {
-    constructor(public name:string, public detect:(data:DataView) => number, public analyze:(mapper:AnalyzerMapper, type:AnalyzerType) => void) {
+    constructor(public name:string, public detect:(data:DataView) => number, public analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
     }
 }
 
@@ -127,19 +127,17 @@ class AnalyzerMapperPlugins {
         this.templates[name.toLowerCase()] = plugin;
     }
 
-    static register(name:string, detect:(data:DataView) => number, analyze:(mapper:AnalyzerMapper, type:AnalyzerType) => void) {
-        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
+    static register(name:string, detect:(data:DataView) => number, analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
+        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyzeAsync));
     }
 
     static runAsync(type: AnalyzerType, editor:HexEditor) {
-        return editor.getDataAsync().then(data => {
-            var name = type.name;
-            name = String(name).toLowerCase();
-            var dataview = new DataView(data.buffer);
-            var mapper = new AnalyzerMapper(dataview);
-            var e:any;
+        return editor.source.readAsync(0, 1024).then(data => {
+            type.name = String(type.name).toLowerCase();
+
             if (name == 'autodetect') {
                 try {
+                    var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map((v, k) => {
                         return { name: v.name, priority: v.detect(dataview) };
                     }), v => v.priority).reverse();
@@ -147,32 +145,38 @@ class AnalyzerMapperPlugins {
                     console.log(JSON.stringify(items));
 
                     var item = items[0];
-                    name = item.name;
-                    type.name = name;
+                    type.name = item.name;
                     //items.sort(v => v.priority)
                 } catch (e) {
                     console.error(e);
                 }
             }
 
-            var template = <AnalyzerMapperPlugin>AnalyzerMapperPlugins.templates[name];
+            return type;
+        }).then(type => {
+            var e:any;
+            var name = type.name;
+            var mapper = new AnalyzerMapper(editor.source);
 
-            try {
-                if (!template) throw new Error("Can't find template '" + name + "'");
-                mapper.value = type;
-                template.analyze(mapper, type);
-            } catch (_e) {
+            var template = <AnalyzerMapperPlugin>AnalyzerMapperPlugins.templates[name];
+            if (!template) throw new Error("Can't find template '" + name + "'");
+            mapper.value = type;
+
+            return template.analyzeAsync(mapper, type).then(value => {
+
+            }, _e => {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
                 e = _e;
-            }
-            return new AnalyzerMapperRendererResult(
-                new AnalyzerMapperRenderer(editor).html(mapper.node),
-                mapper.node,
-                editor,
-                mapper,
-                e
-            );
+            }).then(result => {
+                return new AnalyzerMapperRendererResult(
+                    new AnalyzerMapperRenderer(editor).html(mapper.node),
+                    mapper.node,
+                    editor,
+                    mapper,
+                    e
+                );
+            })
         });
     }
 }
@@ -183,52 +187,72 @@ class AnalyzerMapper {
     bitdata = 0;
     bitsavailable = 0;
     little = true;
+    data:AsyncDataView;
 
-    constructor(public data:DataView, public node:AnalyzerMapperNode = null, public addoffset = 0) {
-        if (this.node == null) this.node = new AnalyzerMapperNode("root", null, addoffset, data.byteLength);
+    constructor(public dataSource:HexSource, public node:AnalyzerMapperNode = null, public addoffset = 0) {
+        this.data = new AsyncDataView(dataSource);
+        if (this.node == null) this.node = new AnalyzerMapperNode("root", null, addoffset, this.data.length);
     }
 
     get available() { return this.length - this.offset; }
-    get length() { return this.data.byteLength; }
+    get length() { return this.data.length; }
 
-    private _read<T>(name:string, type:string, bytecount: number, read: (offset: number) => T, representer?: ValueRepresenter):T {
-        var value = read(this.offset);
-        var element = new AnalyzerMapperElement(name, type, this.addoffset + this.offset, 0, 8 * bytecount, value, representer);
-        this.node.elements.push(element);
+    private _readAsync<T>(name:string, type:string, bytecount: number, readAsync: (offset: number) => Promise<T>, representer?: ValueRepresenter):Promise<T> {
+        var offset = this.offset;
         this.offset += bytecount;
-        return value;
+        return readAsync(offset).then(value => {
+            var element = new AnalyzerMapperElement(name, type, this.addoffset + offset, 0, 8 * bytecount, value, representer);
+            this.node.elements.push(element);
+            return value;
+        });
     }
 
     readByte() {
         if (this.available < 0) throw new Error("No more data available");
-        return this.data.getUint8(this.offset++);
+        return this.data.getUint8Async(this.offset++);
     }
 
-    readBits(bitcount:number) {
-        if (bitcount == 0) return 0;
-        while (this.bitsavailable < bitcount) {
-            this.bitsoffset = this.offset;
-            this.bitdata |= this.readByte() << this.bitsavailable;
-            this.bitsavailable += 8;
+    readBitsAsync(bitcount:number) {
+        if (bitcount == 0) return Promise.resolve(0);
+        var bytestofeed = 0;
+        if (this.bitsavailable < bitcount) {
+            bytestofeed = Math.ceil((bitcount - this.bitsavailable) / 8);
         }
-        var readed = BitUtils.extract(this.bitdata, 0, bitcount);
-        this.bitdata >>>= bitcount;
-        this.bitsavailable -= bitcount;
-        return readed;
+
+        return this.readBytes(bytestofeed).then(feed => {
+            feed.forEach(byte => {
+                this.bitsoffset = this.offset;
+                this.bitdata |= byte << this.bitsavailable;
+                this.bitsavailable += 8;
+            });
+
+            var readed = BitUtils.extract(this.bitdata, 0, bitcount);
+            this.bitdata >>>= bitcount;
+            this.bitsavailable -= bitcount;
+            return readed;
+        });
     }
 
     readBytes(count:number) {
-        var out = [];
-        for (var n = 0; n < count; n++) out.push(this.readByte());
-        return out;
+        if (count == 0) return Promise.resolve([]);
+        var offset = this.offset;
+        this.offset += count;
+        return this.data.getUint8ArrayAsync(offset, count);
     }
 
     bits(name: string, bitcount:number, representer?: ValueRepresenter) {
         var offset = this.bitsoffset;
-        var value = this.readBits(bitcount);
-        var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
-        this.node.elements.push(element);
-        return value;
+        return this.readBitsAsync(bitcount).then(value => {
+            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+            this.node.elements.push(element);
+            return value;
+        });
+    }
+
+    bitBool(name: string) {
+        return this.bits(name, 1, BoolRepresenter).then(value => {
+            return value != 0;
+        });
     }
 
     alignbyte() {
@@ -241,72 +265,108 @@ class AnalyzerMapper {
 
     get globaloffset() { return this.addoffset + this.offset; }
 
-    u8(name:string, representer?: ValueRepresenter) { return this._read(name, 'u8', 1, offset => this.data.getUint8(offset), representer); }
-    u16(name:string, representer?: ValueRepresenter) { return this._read(name, 'u16', 2, offset => this.data.getUint16(offset, this.little), representer); }
-    u32(name:string, representer?: ValueRepresenter) { return this._read(name, 'u32', 4, offset => this.data.getUint32(offset, this.little), representer); }
+    u8(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u8', 1, offset => this.data.getUint8Async(offset), representer); }
+    u16(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u16', 2, offset => this.data.getUint16Async(offset, this.little), representer); }
+    u32(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u32', 4, offset => this.data.getUint32Async(offset, this.little), representer); }
     str(name:string, count:number, encoding:string = 'ascii') {
-        var textData = new Uint8Array(count);
-        for (var n = 0; n < count; n++) textData[n] = this.data.getUint8(this.offset + n);
-        var value = new TextDecoder(encoding).decode(textData);
-        this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', this.globaloffset, 0, 8 * count, value));
-        this.offset += count;
-        return value;
+        return this.data.getUint8ArrayAsync(this.offset, count).then(values => {
+            var textData = new Uint8Array(values);
+            var value = new TextDecoder(encoding).decode(textData);
+            this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', this.globaloffset, 0, 8 * count, value));
+            this.offset += count;
+            return value;
+        });
     }
     strz(name:string, encoding:string = 'ascii') {
         var count = 0;
-        for (var n = 0; n < this.available; n++) {
-            count++;
-            if (this.data.getUint8(this.offset + n) == 0) break;
-        }
-        return this.str(name, count, encoding);
+        var loopAsync = () => {
+            if (count >= this.available) return Promise.resolve(this.str(name, count, encoding));
+
+            return this.data.getUint8Async(this.offset + count).then(value => {
+                count++;
+
+                if (value != 0) {
+                    return loopAsync();
+                } else {
+                    return this.str(name, count, encoding);
+                }
+            });
+        };
+        return loopAsync().then(result => {
+            return result;
+        });
     }
-    subs(name:string, count:number, callback?: (mapper:AnalyzerMapper) => void) {
-        var value = <ArrayBuffer>((<any>this.data.buffer).slice(this.offset, this.offset + count));
+    subs<T>(name:string, count:number, callbackAsync?: (mapper:AnalyzerMapper) => Promise<T>) {
+        var sourceSlice = new HexSourceSlice(this.dataSource, this.offset, this.offset + count);
+
         var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
-        var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
+        var mapper = new AnalyzerMapper(sourceSlice, subsnode, this.offset);
         mapper.little = this.little;
-        this.node.elements.push(subsnode);
         this.offset += count;
-        if (callback) {
-            var result = callback(mapper);
-            mapper.node.value = result;
+        this.node.elements.push(subsnode);
+        if (callbackAsync) {
+            return callbackAsync(mapper).then(result => {
+                mapper.node.value = result;
+                return mapper;
+            });
+        } else {
+            return Promise.resolve(mapper);
         }
-        return mapper;
-    }
-    chunk(name:string, count:number, type:AnalyzerType = null, representer?: ValueRepresenter) {
-        var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
-        element.value = new HexChunk(this.readBytes(count), type);
-        this.node.elements.push(element);
-        return element;
     }
 
-    struct(name:string, callback: (node?:AnalyzerMapperNode) => void, expanded:boolean = true) {
+    readSlice(count:number) {
+        var offset = this.offset;
+        this.offset += count;
+        return this.data.getSliceAsync(offset, count);
+    }
+
+    chunk(name:string, count:number, type:AnalyzerType = null, representer?: ValueRepresenter) {
+        var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
+
+        return this.readSlice(count).then(data => {
+            element.value = new HexChunk(data, type);
+            this.node.elements.push(element);
+            return element;
+        })
+    }
+
+    struct(name:string, callbackAsync: (node?:AnalyzerMapperNode) => Promise<any>, expanded:boolean = true) {
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        try {
-            var value = callback(groupnode);
-        } finally {
-            groupnode.value = value;
+        var restore = () => {
             groupnode.expanded = expanded;
             this.node = parentnode;
             this.node.elements.push(groupnode);
-        }
+        };
+        return callbackAsync(groupnode).then(value => {
+            groupnode.value = value;
+            restore();
+            return value;
+        }, error => {
+            groupnode.value = null;
+            restore();
+            throw(error);
+        })
     }
 
-    structNoExpand(name:string, callback: (node?:AnalyzerMapperNode) => void) {
-        return this.struct(name, callback, false);
+    structNoExpand(name:string, callbackAsync: (node?:AnalyzerMapperNode) => Promise<any>) {
+        return this.struct(name, callbackAsync, false);
     }
 
     toffset = 0;
 
-    tvalueOffset<T>(callback: () => void) {
+    tvalueOffsetAsync<T>(callbackAsync: () => Promise<any>) {
         var old = this.toffset;
         this.toffset = this.offset;
-        try {
-            callback();
-        } finally {
+        var restore = () => {
             this.toffset = old;
-        }
+        };
+        return callbackAsync().then(() => {
+            restore();
+        }, error => {
+            restore();
+            throw(error);
+        })
     }
 
     tvalue<T>(name:string, type:string, value:T, representer?: ValueRepresenter) {
@@ -342,8 +402,11 @@ class AnalyzerMapperRenderer {
 
         title.mouseover(e => {
             if (this.editor.source != source) return;
-            this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
-            this.editor.ensureViewVisibleRange(element.offset);
+            var start = element.offset;
+            var end = start + element.bitcount / 8;
+            //console.info(element, element.offset, element.bitcount / 8);
+            this.editor.cursor.selection.makeSelection(start, end - start);
+            this.editor.ensureViewVisibleRange(start, end - 1);
         });
 
         if (element instanceof AnalyzerMapperNode) {

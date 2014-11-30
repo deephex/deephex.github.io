@@ -339,6 +339,42 @@ interface HexSource {
     readAsync(offset:number, size:number):Promise<Uint8Array>;
 }
 
+class HexSourceSlice implements HexSource {
+    constructor(public parent:HexSource, public start:number, public end:number) {
+        this.start = MathUtils.clamp(this.start, 0, parent.length)
+        this.end = MathUtils.clamp(this.end, 0, parent.length)
+    }
+
+    get length():number { return this.end - this.start; }
+
+    readAsync(offset:number, size:number):Promise<Uint8Array> {
+        var start = MathUtils.clamp(offset, 0, this.length);
+        var end = MathUtils.clamp(offset + size, 0, this.length);
+        return this.parent.readAsync(this.start + start, (end - start));
+    }
+}
+
+class AsyncDataView {
+    constructor(public source:HexSource) {
+    }
+
+    get length() { return this.source.length; }
+
+    getUint8ArrayAsync(offset:number, count:number) {
+        return this.source.readAsync(offset, count).then(data => {
+            var out = [];
+            for (var n = 0; n < data.length; n++) out.push(data[n]);
+            return out;
+        });
+    }
+    getUint8Async(offset:number) { return this.source.readAsync(offset, 1).then(data => new DataView(data.buffer).getUint8(0)); }
+    getUint16Async(offset:number, little?:boolean) { return this.source.readAsync(offset, 2).then(data => new DataView(data.buffer).getUint16(0, little)); }
+    getUint32Async(offset:number, little?:boolean) { return this.source.readAsync(offset, 4).then(data => new DataView(data.buffer).getUint32(0, little)); }
+    getSliceAsync(offset:number, count:number) {
+        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
+    }
+}
+
 class ArrayHexSource implements HexSource {
     constructor(public data:Uint8Array, private delay = 100) {
     }
@@ -355,6 +391,24 @@ class ArrayHexSource implements HexSource {
         //return waitAsync(3000).then(() => { return out; });
         return Promise.resolve(out);
     }
+}
+
+class FileSource implements HexSource {
+    constructor(public file:File) {
+    }
+
+    get length() { return this.file.size; }
+
+    readAsync(offset:number, size:number):Promise<Uint8Array> {
+        return new Promise((resolve, reject) => {
+            var reader = new FileReader();
+            reader.onload = (event) => {
+                resolve(new Uint8Array((<any>event.target).result));
+            };
+            reader.readAsArrayBuffer(this.file.slice(offset, offset + size));
+        });
+    }
+
 }
 
 class HexEditor {
@@ -400,14 +454,17 @@ class HexEditor {
         return this.columnCount * this.rowCount;
     }
 
-    ensureViewVisibleRange(globaloffset:number) {
+    ensureViewVisibleRange(globaloffset:number, globaloffsetend:number) {
         if (!this.visiblerange.contains(globaloffset)) {
             //this.offset
-            if (this.offset < globaloffset) {
+            if (globaloffset >= this.offset) {
                 this.moveViewTo(MathUtils.floorMultiple(globaloffset - this.totalbytesinview + this.columnCount, this.columnCount));
             } else {
                 this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
             }
+        }
+        if (!this.visiblerange.contains(globaloffsetend)) {
+            this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
         }
     }
 
@@ -686,10 +743,6 @@ class HexEditor {
 
     addHotkeys(keys:string[], event: () => void) {
         keys.forEach(key => this.addHotkey(key, event));
-    }
-
-    static convert(element:HTMLElement) {
-        return new HexEditor(element);
     }
 }
 

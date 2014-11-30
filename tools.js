@@ -3,7 +3,6 @@
 /// <reference path="./utils.ts" />
 /// <reference path="./editor.ts" />
 /// <reference path="./analyzer.ts" />
-/// <reference path="./templates/png.ts" />
 var HexTools = (function () {
     function HexTools(element, outputelement, editor) {
         var _this = this;
@@ -32,14 +31,9 @@ var HexTools = (function () {
             e.stopImmediatePropagation();
             $(editor.element).removeClass('drag');
             var file = e.dataTransfer.files[0];
-            var reader = new FileReader();
-            reader.onload = function (event) {
-                $(outputelement).html('');
-                editor.setData(new Uint8Array(event.target.result));
-                _this.analyze(new AnalyzerType('autodetect'));
-            };
-            console.log(file);
-            reader.readAsArrayBuffer(file);
+            editor.source = new FileSource(file);
+            $(outputelement).html('');
+            _this.analyze(new AnalyzerType('autodetect'));
             return false;
         };
         $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {

@@ -169,6 +169,30 @@ var HuffmanTree = (function () {
         this.root = root;
         this.symbolLimit = symbolLimit;
     }
+    HuffmanTree.prototype.readOneAsync = function (reader) {
+        var node = this.root;
+        var bitcount = 0;
+        var bitcode = 0;
+        var processOneAsync = function () {
+            return reader.readBitsAsync(1).then(function (bbit) {
+                var bit = (bbit != 0);
+                bitcode |= bbit << bitcount;
+                bitcount++;
+                //console.log('bit', bit);
+                node = bit ? node.right : node.left;
+                //console.info(node);
+                if (node && node.len == 0) {
+                    return processOneAsync();
+                }
+                else {
+                    if (!node)
+                        throw new Error("NODE = NULL");
+                    return { value: node.value, bitcode: bitcode, bitcount: bitcount };
+                }
+            });
+        };
+        return processOneAsync();
+    };
     HuffmanTree.prototype.readOne = function (reader) {
         //console.log('-------------');
         var node = this.root;
@@ -208,4 +232,55 @@ var HuffmanTree = (function () {
     };
     return HuffmanTree;
 })();
+function async(callback) {
+    return function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i - 0] = arguments[_i];
+        }
+        return _spawn(callback, args);
+    };
+}
+function spawn(generatorFunction) {
+    return _spawn(generatorFunction, []);
+}
+function _spawn(generatorFunction, args) {
+    var first = true;
+    return new Promise(function (resolve, reject) {
+        try {
+            var iterator = generatorFunction.apply(null, args);
+        }
+        catch (e) {
+            reject(e);
+        }
+        var next = function (first, sendValue, sendException) {
+            try {
+                var result;
+                if (first) {
+                    result = iterator.next();
+                }
+                else if (sendException) {
+                    result = iterator.throw(sendException);
+                }
+                else {
+                    result = iterator.next(sendValue);
+                }
+                if (result.done) {
+                    return resolve(result.value);
+                }
+                else if (!result.value || result.value.then === undefined) {
+                    return reject(new Error("Invalid result: '" + result.value + "'"));
+                }
+                else {
+                    result.value.then((function (value) { return next(false, value, undefined); }), (function (error) { return next(false, undefined, error); }));
+                }
+            }
+            catch (e) {
+                return reject(e);
+            }
+            return undefined;
+        };
+        next(true, undefined, undefined);
+    });
+}
 //# sourceMappingURL=utils.js.map

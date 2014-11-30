@@ -48,8 +48,8 @@ var AnalyzerType = (function () {
     return AnalyzerType;
 })();
 var HexChunk = (function () {
-    function HexChunk(data, type) {
-        this.data = data;
+    function HexChunk(source, type) {
+        this.source = source;
         this.type = type;
         if (!this.type)
             this.type = new AnalyzerType('autodetect');
@@ -61,7 +61,7 @@ var HexChunk = (function () {
             e.stopPropagation();
             e.preventDefault();
             //alert(1);
-            editor.setData(new Uint8Array(_this.data));
+            editor.source = _this.source;
             AnalyzerMapperPlugins.runAsync(_this.type, editor).then(function (result) {
                 console.log(result.node);
                 if (result.error)
@@ -72,7 +72,7 @@ var HexChunk = (function () {
             return false;
         }));
         //item.append('HexChunk[' + this.data.length + '](' + CType.ensurePrintable(String.fromCharCode.apply(null, this.data)) + ')');
-        item.append('HexChunk[' + this.data.length + '](' + this.type + ')');
+        item.append('HexChunk[' + this.source.length + '](' + this.type + ')');
         return item;
     };
     return HexChunk;
@@ -162,8 +162,8 @@ var AnalyzerMapperNode = (function (_super) {
     });
     Object.defineProperty(AnalyzerMapperNode.prototype, "bitcount", {
         get: function () {
-            if (!this.scount)
-                return 0;
+            if (!this.hasElements)
+                return this.scount;
             return (this.last.offset - this.offset) * 8 + this.last.bitcount;
         },
         enumerable: true,
@@ -172,10 +172,10 @@ var AnalyzerMapperNode = (function (_super) {
     return AnalyzerMapperNode;
 })(AnalyzerMapperElement);
 var AnalyzerMapperPlugin = (function () {
-    function AnalyzerMapperPlugin(name, detect, analyze) {
+    function AnalyzerMapperPlugin(name, detect, analyzeAsync) {
         this.name = name;
         this.detect = detect;
-        this.analyze = analyze;
+        this.analyzeAsync = analyzeAsync;
     }
     return AnalyzerMapperPlugin;
 })();
@@ -187,53 +187,53 @@ var AnalyzerMapperPlugins = (function () {
         console.log('registered plugin', name.toLowerCase(), plugin);
         this.templates[name.toLowerCase()] = plugin;
     };
-    AnalyzerMapperPlugins.register = function (name, detect, analyze) {
-        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
+    AnalyzerMapperPlugins.register = function (name, detect, analyzeAsync) {
+        return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyzeAsync));
     };
     AnalyzerMapperPlugins.runAsync = function (type, editor) {
-        return editor.getDataAsync().then(function (data) {
-            var name = type.name;
-            name = String(name).toLowerCase();
-            var dataview = new DataView(data.buffer);
-            var mapper = new AnalyzerMapper(dataview);
-            var e;
+        return editor.source.readAsync(0, 1024).then(function (data) {
+            type.name = String(type.name).toLowerCase();
             if (name == 'autodetect') {
                 try {
+                    var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map(function (v, k) {
                         return { name: v.name, priority: v.detect(dataview) };
                     }), function (v) { return v.priority; }).reverse();
                     console.log(JSON.stringify(items));
                     var item = items[0];
-                    name = item.name;
-                    type.name = name;
+                    type.name = item.name;
                 }
                 catch (e) {
                     console.error(e);
                 }
             }
+            return type;
+        }).then(function (type) {
+            var e;
+            var name = type.name;
+            var mapper = new AnalyzerMapper(editor.source);
             var template = AnalyzerMapperPlugins.templates[name];
-            try {
-                if (!template)
-                    throw new Error("Can't find template '" + name + "'");
-                mapper.value = type;
-                template.analyze(mapper, type);
-            }
-            catch (_e) {
+            if (!template)
+                throw new Error("Can't find template '" + name + "'");
+            mapper.value = type;
+            return template.analyzeAsync(mapper, type).then(function (value) {
+            }, function (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
                 e = _e;
-            }
-            return new AnalyzerMapperRendererResult(new AnalyzerMapperRenderer(editor).html(mapper.node), mapper.node, editor, mapper, e);
+            }).then(function (result) {
+                return new AnalyzerMapperRendererResult(new AnalyzerMapperRenderer(editor).html(mapper.node), mapper.node, editor, mapper, e);
+            });
         });
     };
     AnalyzerMapperPlugins.templates = {};
     return AnalyzerMapperPlugins;
 })();
 var AnalyzerMapper = (function () {
-    function AnalyzerMapper(data, node, addoffset) {
+    function AnalyzerMapper(dataSource, node, addoffset) {
         if (node === void 0) { node = null; }
         if (addoffset === void 0) { addoffset = 0; }
-        this.data = data;
+        this.dataSource = dataSource;
         this.node = node;
         this.addoffset = addoffset;
         this.offset = 0;
@@ -242,8 +242,9 @@ var AnalyzerMapper = (function () {
         this.bitsavailable = 0;
         this.little = true;
         this.toffset = 0;
+        this.data = new AsyncDataView(dataSource);
         if (this.node == null)
-            this.node = new AnalyzerMapperNode("root", null, addoffset, data.byteLength);
+            this.node = new AnalyzerMapperNode("root", null, addoffset, this.data.length);
     }
     Object.defineProperty(AnalyzerMapper.prototype, "available", {
         get: function () {
@@ -254,48 +255,66 @@ var AnalyzerMapper = (function () {
     });
     Object.defineProperty(AnalyzerMapper.prototype, "length", {
         get: function () {
-            return this.data.byteLength;
+            return this.data.length;
         },
         enumerable: true,
         configurable: true
     });
-    AnalyzerMapper.prototype._read = function (name, type, bytecount, read, representer) {
-        var value = read(this.offset);
-        var element = new AnalyzerMapperElement(name, type, this.addoffset + this.offset, 0, 8 * bytecount, value, representer);
-        this.node.elements.push(element);
+    AnalyzerMapper.prototype._readAsync = function (name, type, bytecount, readAsync, representer) {
+        var _this = this;
+        var offset = this.offset;
         this.offset += bytecount;
-        return value;
+        return readAsync(offset).then(function (value) {
+            var element = new AnalyzerMapperElement(name, type, _this.addoffset + offset, 0, 8 * bytecount, value, representer);
+            _this.node.elements.push(element);
+            return value;
+        });
     };
     AnalyzerMapper.prototype.readByte = function () {
         if (this.available < 0)
             throw new Error("No more data available");
-        return this.data.getUint8(this.offset++);
+        return this.data.getUint8Async(this.offset++);
     };
-    AnalyzerMapper.prototype.readBits = function (bitcount) {
+    AnalyzerMapper.prototype.readBitsAsync = function (bitcount) {
+        var _this = this;
         if (bitcount == 0)
-            return 0;
-        while (this.bitsavailable < bitcount) {
-            this.bitsoffset = this.offset;
-            this.bitdata |= this.readByte() << this.bitsavailable;
-            this.bitsavailable += 8;
+            return Promise.resolve(0);
+        var bytestofeed = 0;
+        if (this.bitsavailable < bitcount) {
+            bytestofeed = Math.ceil((bitcount - this.bitsavailable) / 8);
         }
-        var readed = BitUtils.extract(this.bitdata, 0, bitcount);
-        this.bitdata >>>= bitcount;
-        this.bitsavailable -= bitcount;
-        return readed;
+        return this.readBytes(bytestofeed).then(function (feed) {
+            feed.forEach(function (byte) {
+                _this.bitsoffset = _this.offset;
+                _this.bitdata |= byte << _this.bitsavailable;
+                _this.bitsavailable += 8;
+            });
+            var readed = BitUtils.extract(_this.bitdata, 0, bitcount);
+            _this.bitdata >>>= bitcount;
+            _this.bitsavailable -= bitcount;
+            return readed;
+        });
     };
     AnalyzerMapper.prototype.readBytes = function (count) {
-        var out = [];
-        for (var n = 0; n < count; n++)
-            out.push(this.readByte());
-        return out;
+        if (count == 0)
+            return Promise.resolve([]);
+        var offset = this.offset;
+        this.offset += count;
+        return this.data.getUint8ArrayAsync(offset, count);
     };
     AnalyzerMapper.prototype.bits = function (name, bitcount, representer) {
+        var _this = this;
         var offset = this.bitsoffset;
-        var value = this.readBits(bitcount);
-        var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
-        this.node.elements.push(element);
-        return value;
+        return this.readBitsAsync(bitcount).then(function (value) {
+            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', _this.addoffset + _this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+            _this.node.elements.push(element);
+            return value;
+        });
+    };
+    AnalyzerMapper.prototype.bitBool = function (name) {
+        return this.bits(name, 1, BoolRepresenter).then(function (value) {
+            return value != 0;
+        });
     };
     AnalyzerMapper.prototype.alignbyte = function () {
         this.bitsavailable = 0;
@@ -324,82 +343,116 @@ var AnalyzerMapper = (function () {
     });
     AnalyzerMapper.prototype.u8 = function (name, representer) {
         var _this = this;
-        return this._read(name, 'u8', 1, function (offset) { return _this.data.getUint8(offset); }, representer);
+        return this._readAsync(name, 'u8', 1, function (offset) { return _this.data.getUint8Async(offset); }, representer);
     };
     AnalyzerMapper.prototype.u16 = function (name, representer) {
         var _this = this;
-        return this._read(name, 'u16', 2, function (offset) { return _this.data.getUint16(offset, _this.little); }, representer);
+        return this._readAsync(name, 'u16', 2, function (offset) { return _this.data.getUint16Async(offset, _this.little); }, representer);
     };
     AnalyzerMapper.prototype.u32 = function (name, representer) {
         var _this = this;
-        return this._read(name, 'u32', 4, function (offset) { return _this.data.getUint32(offset, _this.little); }, representer);
+        return this._readAsync(name, 'u32', 4, function (offset) { return _this.data.getUint32Async(offset, _this.little); }, representer);
     };
     AnalyzerMapper.prototype.str = function (name, count, encoding) {
+        var _this = this;
         if (encoding === void 0) { encoding = 'ascii'; }
-        var textData = new Uint8Array(count);
-        for (var n = 0; n < count; n++)
-            textData[n] = this.data.getUint8(this.offset + n);
-        var value = new TextDecoder(encoding).decode(textData);
-        this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', this.globaloffset, 0, 8 * count, value));
-        this.offset += count;
-        return value;
+        return this.data.getUint8ArrayAsync(this.offset, count).then(function (values) {
+            var textData = new Uint8Array(values);
+            var value = new TextDecoder(encoding).decode(textData);
+            _this.node.elements.push(new AnalyzerMapperElement(name, 'u8[' + count + ']', _this.globaloffset, 0, 8 * count, value));
+            _this.offset += count;
+            return value;
+        });
     };
     AnalyzerMapper.prototype.strz = function (name, encoding) {
+        var _this = this;
         if (encoding === void 0) { encoding = 'ascii'; }
         var count = 0;
-        for (var n = 0; n < this.available; n++) {
-            count++;
-            if (this.data.getUint8(this.offset + n) == 0)
-                break;
-        }
-        return this.str(name, count, encoding);
+        var loopAsync = function () {
+            if (count >= _this.available)
+                return Promise.resolve(_this.str(name, count, encoding));
+            return _this.data.getUint8Async(_this.offset + count).then(function (value) {
+                count++;
+                if (value != 0) {
+                    return loopAsync();
+                }
+                else {
+                    return _this.str(name, count, encoding);
+                }
+            });
+        };
+        return loopAsync().then(function (result) {
+            return result;
+        });
     };
-    AnalyzerMapper.prototype.subs = function (name, count, callback) {
-        var value = (this.data.buffer.slice(this.offset, this.offset + count));
+    AnalyzerMapper.prototype.subs = function (name, count, callbackAsync) {
+        var sourceSlice = new HexSourceSlice(this.dataSource, this.offset, this.offset + count);
         var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
-        var mapper = new AnalyzerMapper(new DataView(value), subsnode, this.offset);
+        var mapper = new AnalyzerMapper(sourceSlice, subsnode, this.offset);
         mapper.little = this.little;
-        this.node.elements.push(subsnode);
         this.offset += count;
-        if (callback) {
-            var result = callback(mapper);
-            mapper.node.value = result;
+        this.node.elements.push(subsnode);
+        if (callbackAsync) {
+            return callbackAsync(mapper).then(function (result) {
+                mapper.node.value = result;
+                return mapper;
+            });
         }
-        return mapper;
+        else {
+            return Promise.resolve(mapper);
+        }
+    };
+    AnalyzerMapper.prototype.readSlice = function (count) {
+        var offset = this.offset;
+        this.offset += count;
+        return this.data.getSliceAsync(offset, count);
     };
     AnalyzerMapper.prototype.chunk = function (name, count, type, representer) {
+        var _this = this;
         if (type === void 0) { type = null; }
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
-        element.value = new HexChunk(this.readBytes(count), type);
-        this.node.elements.push(element);
-        return element;
+        return this.readSlice(count).then(function (data) {
+            element.value = new HexChunk(data, type);
+            _this.node.elements.push(element);
+            return element;
+        });
     };
-    AnalyzerMapper.prototype.struct = function (name, callback, expanded) {
+    AnalyzerMapper.prototype.struct = function (name, callbackAsync, expanded) {
+        var _this = this;
         if (expanded === void 0) { expanded = true; }
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        try {
-            var value = callback(groupnode);
-        }
-        finally {
-            groupnode.value = value;
+        var restore = function () {
             groupnode.expanded = expanded;
-            this.node = parentnode;
-            this.node.elements.push(groupnode);
-        }
+            _this.node = parentnode;
+            _this.node.elements.push(groupnode);
+        };
+        return callbackAsync(groupnode).then(function (value) {
+            groupnode.value = value;
+            restore();
+            return value;
+        }, function (error) {
+            groupnode.value = null;
+            restore();
+            throw (error);
+        });
     };
-    AnalyzerMapper.prototype.structNoExpand = function (name, callback) {
-        return this.struct(name, callback, false);
+    AnalyzerMapper.prototype.structNoExpand = function (name, callbackAsync) {
+        return this.struct(name, callbackAsync, false);
     };
-    AnalyzerMapper.prototype.tvalueOffset = function (callback) {
+    AnalyzerMapper.prototype.tvalueOffsetAsync = function (callbackAsync) {
+        var _this = this;
         var old = this.toffset;
         this.toffset = this.offset;
-        try {
-            callback();
-        }
-        finally {
-            this.toffset = old;
-        }
+        var restore = function () {
+            _this.toffset = old;
+        };
+        return callbackAsync().then(function () {
+            restore();
+        }, function (error) {
+            restore();
+            throw (error);
+        });
     };
     AnalyzerMapper.prototype.tvalue = function (name, type, value, representer) {
         this.node.elements.push(new AnalyzerMapperElement(name, type, this.toffset, 0, (this.offset - this.toffset) * 8, value, representer));
@@ -434,8 +487,11 @@ var AnalyzerMapperRenderer = (function () {
         title.mouseover(function (e) {
             if (_this.editor.source != source)
                 return;
-            _this.editor.cursor.selection.makeSelection(element.offset, element.bitcount / 8);
-            _this.editor.ensureViewVisibleRange(element.offset);
+            var start = element.offset;
+            var end = start + element.bitcount / 8;
+            //console.info(element, element.offset, element.bitcount / 8);
+            _this.editor.cursor.selection.makeSelection(start, end - start);
+            _this.editor.ensureViewVisibleRange(start, end - 1);
         });
         if (element instanceof AnalyzerMapperNode) {
             var node = element;

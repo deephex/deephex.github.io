@@ -3,7 +3,6 @@
 /// <reference path="./utils.ts" />
 /// <reference path="./editor.ts" />
 /// <reference path="./analyzer.ts" />
-/// <reference path="./templates/png.ts" />
 
 class HexTools {
     bitCount = 8;
@@ -36,14 +35,10 @@ class HexTools {
             $(editor.element).removeClass('drag');
 
             var file = (<DragEvent>e).dataTransfer.files[0];
-            var reader = new FileReader();
-            reader.onload = (event) => {
-                $(outputelement).html('');
-                editor.setData(new Uint8Array((<any>event.target).result));
-                this.analyze(new AnalyzerType('autodetect'));
-            };
-            console.log(file);
-            reader.readAsArrayBuffer(file);
+
+            editor.source = new FileSource(file);
+            $(outputelement).html('');
+            this.analyze(new AnalyzerType('autodetect'));
 
             return false;
         };

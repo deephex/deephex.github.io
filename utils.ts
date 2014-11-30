@@ -169,8 +169,39 @@ interface BitReader {
     readBits(count:number):number;
 }
 
+interface AsyncBitReader {
+    readBitsAsync(count:number):Promise<number>;
+}
+
 class HuffmanTree {
     constructor(public root:HuffmanNode, public symbolLimit:number) {
+    }
+
+    readOneAsync(reader:AsyncBitReader) {
+        var node = this.root;
+        var bitcount = 0;
+        var bitcode = 0;
+
+        var processOneAsync = () => {
+            return reader.readBitsAsync(1).then(bbit => {
+                var bit = (bbit != 0);
+                bitcode |= bbit << bitcount;
+                bitcount++;
+                //console.log('bit', bit);
+                node = bit ? node.right : node.left;
+                //console.info(node);
+
+                if (node && node.len == 0) {
+                    return processOneAsync();
+                } else {
+                    if (!node) throw new Error("NODE = NULL");
+                    return {value: node.value, bitcode: bitcode, bitcount: bitcount};
+                }
+            });
+        };
+
+        return processOneAsync();
+
     }
 
     readOne(reader:BitReader) {
@@ -218,4 +249,63 @@ class HuffmanTree {
         return new HuffmanTree(HuffmanNode.internal(nodes[0], nodes[1]), codeLengths.length);
 
     }
+}
+
+interface GeneratorResult {
+    value: any;
+    done: Boolean;
+}
+
+interface Generator {
+    next(value?: any): GeneratorResult;
+    throw(error: Error): GeneratorResult;
+    //send(value: any): GeneratorResult;
+}
+
+function async<T>(callback: Function): () => Promise<T> {
+    return (...args: any[]) => {
+        return _spawn(<any>callback, args);
+    };
+}
+
+function spawn<TR>(generatorFunction: () => TR): Promise<TR> {
+    return _spawn(generatorFunction, []);
+}
+
+function _spawn<TR>(generatorFunction: () => TR, args: any[]): Promise<TR> {
+    var first = true;
+    return new Promise((resolve, reject) => {
+        try {
+            var iterator = <Generator><any>generatorFunction.apply(null, args);
+        } catch (e) {
+            reject(e);
+        }
+
+        var next = (first, sendValue, sendException) => {
+            try {
+                var result: GeneratorResult;
+                if (first) {
+                    result = iterator.next();
+                } else if (sendException) {
+                    result = iterator.throw(sendException);
+                } else {
+                    result = iterator.next(sendValue);
+                }
+
+                if (result.done) {
+                    return resolve(result.value);
+                } else if (!result.value || result.value.then === undefined) {
+                    return reject(new Error("Invalid result: '" + result.value + "'"));
+                } else {
+                    result.value.then(((value) => next(false, value, undefined)), ((error) => next(false, undefined, error)));
+                }
+            } catch (e) {
+                return reject(e);
+            }
+
+            return undefined;
+        };
+
+        next(true, undefined, undefined);
+    });
 }

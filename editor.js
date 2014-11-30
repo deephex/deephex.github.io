@@ -556,6 +556,61 @@ var HexSelection = (function () {
     };
     return HexSelection;
 })();
+var HexSourceSlice = (function () {
+    function HexSourceSlice(parent, start, end) {
+        this.parent = parent;
+        this.start = start;
+        this.end = end;
+        this.start = MathUtils.clamp(this.start, 0, parent.length);
+        this.end = MathUtils.clamp(this.end, 0, parent.length);
+    }
+    Object.defineProperty(HexSourceSlice.prototype, "length", {
+        get: function () {
+            return this.end - this.start;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    HexSourceSlice.prototype.readAsync = function (offset, size) {
+        var start = MathUtils.clamp(offset, 0, this.length);
+        var end = MathUtils.clamp(offset + size, 0, this.length);
+        return this.parent.readAsync(this.start + start, (end - start));
+    };
+    return HexSourceSlice;
+})();
+var AsyncDataView = (function () {
+    function AsyncDataView(source) {
+        this.source = source;
+    }
+    Object.defineProperty(AsyncDataView.prototype, "length", {
+        get: function () {
+            return this.source.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    AsyncDataView.prototype.getUint8ArrayAsync = function (offset, count) {
+        return this.source.readAsync(offset, count).then(function (data) {
+            var out = [];
+            for (var n = 0; n < data.length; n++)
+                out.push(data[n]);
+            return out;
+        });
+    };
+    AsyncDataView.prototype.getUint8Async = function (offset) {
+        return this.source.readAsync(offset, 1).then(function (data) { return new DataView(data.buffer).getUint8(0); });
+    };
+    AsyncDataView.prototype.getUint16Async = function (offset, little) {
+        return this.source.readAsync(offset, 2).then(function (data) { return new DataView(data.buffer).getUint16(0, little); });
+    };
+    AsyncDataView.prototype.getUint32Async = function (offset, little) {
+        return this.source.readAsync(offset, 4).then(function (data) { return new DataView(data.buffer).getUint32(0, little); });
+    };
+    AsyncDataView.prototype.getSliceAsync = function (offset, count) {
+        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
+    };
+    return AsyncDataView;
+})();
 var ArrayHexSource = (function () {
     function ArrayHexSource(data, delay) {
         if (delay === void 0) { delay = 100; }
@@ -579,6 +634,29 @@ var ArrayHexSource = (function () {
         return Promise.resolve(out);
     };
     return ArrayHexSource;
+})();
+var FileSource = (function () {
+    function FileSource(file) {
+        this.file = file;
+    }
+    Object.defineProperty(FileSource.prototype, "length", {
+        get: function () {
+            return this.file.size;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    FileSource.prototype.readAsync = function (offset, size) {
+        var _this = this;
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function (event) {
+                resolve(new Uint8Array(event.target.result));
+            };
+            reader.readAsArrayBuffer(_this.file.slice(offset, offset + size));
+        });
+    };
+    return FileSource;
 })();
 var HexEditor = (function () {
     function HexEditor(element) {
@@ -796,15 +874,18 @@ var HexEditor = (function () {
         enumerable: true,
         configurable: true
     });
-    HexEditor.prototype.ensureViewVisibleRange = function (globaloffset) {
+    HexEditor.prototype.ensureViewVisibleRange = function (globaloffset, globaloffsetend) {
         if (!this.visiblerange.contains(globaloffset)) {
             //this.offset
-            if (this.offset < globaloffset) {
+            if (globaloffset >= this.offset) {
                 this.moveViewTo(MathUtils.floorMultiple(globaloffset - this.totalbytesinview + this.columnCount, this.columnCount));
             }
             else {
                 this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
             }
+        }
+        if (!this.visiblerange.contains(globaloffsetend)) {
+            this.moveViewTo(MathUtils.floorMultiple(globaloffset, this.columnCount));
         }
     };
     HexEditor.prototype.moveViewBy = function (doffset) {
@@ -914,9 +995,6 @@ var HexEditor = (function () {
     HexEditor.prototype.addHotkeys = function (keys, event) {
         var _this = this;
         keys.forEach(function (key) { return _this.addHotkey(key, event); });
-    };
-    HexEditor.convert = function (element) {
-        return new HexEditor(element);
     };
     return HexEditor;
 })();
