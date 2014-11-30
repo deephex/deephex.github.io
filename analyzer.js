@@ -419,6 +419,7 @@ var AnalyzerMapperRenderer = (function () {
                     childs.append(_this.html(e));
                 });
                 title.click(function (e) {
+                    window.getSelection().removeAllRanges();
                     var expanded = title.hasClass('expanded');
                     title.toggleClass('expanded', !expanded);
                     childs.toggleClass('expanded', !expanded);

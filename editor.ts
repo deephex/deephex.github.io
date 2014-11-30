@@ -3,6 +3,21 @@
 /// <reference path="./es6-promise.d.ts" />
 /// <reference path="./utils.ts" />
 
+class HexColumn {
+    constructor(public editor:HexEditor, public value:number) {
+
+    }
+
+    get prev() { return this.isFirst ? null : this.editor.columns[this.value - 1]; }
+    get next() { return this.isLast ? null : this.editor.columns[this.value + 1]; }
+
+    get prevCyclic() { return this.editor.columns[MathUtils.modUnsigned(this.value - 1, this.editor.columnCount)]; }
+    get nextCyclic() { return this.editor.columns[MathUtils.modUnsigned(this.value + 1, this.editor.columnCount)]; }
+
+    get isFirst() { return this.value == 0; }
+    get isLast() { return this.value == this.editor.columnCount - 1; }
+}
+
 class HexCell {
     elementHex:HTMLElement;
     elementChar:HTMLElement;
@@ -11,26 +26,30 @@ class HexCell {
 
     get globaloffset() { return this.row.editor.offset + this.viewoffset; }
 
-    constructor(public row:HexRow, public column:number) {
+    constructor(public row:HexRow, public column:HexColumn) {
         this.elementHex = $('<span class="byte">  </span>').get(0);
         this.elementChar = $('<span class="char"> </span>').get(0);
-        this.viewoffset = this.row.row * this.row.editor.columnCount + this.column;
+        this.viewoffset = this.row.value * this.row.editor.columnCount + this.column.value;
         $(this.elementHex).click((e) => {
+            if (!this.enabled) return;
             this.row.editor.onCellClick.dispatch(this);
         });
         $(this.elementHex).mousedown((e) => {
+            if (!this.enabled) return;
             if (e.which == 1) {
                 e.preventDefault();
                 this.row.editor.onCellDown.dispatch(this);
             }
         });
         $(this.elementHex).mousemove((e) => {
+            if (!this.enabled) return;
             if (e.which == 1) {
                 e.preventDefault();
                 this.row.editor.onCellMove.dispatch(this);
             }
         });
         $(this.elementHex).mouseup((e) => {
+            if (!this.enabled) return;
             if (e.which == 1) {
                 e.preventDefault();
                 this.row.editor.onCellUp.dispatch(this);
@@ -38,7 +57,7 @@ class HexCell {
         });
     }
 
-    _enabled = false;
+    private _enabled = false;
 
     set enabled(value:boolean) {
         if (this._enabled == value) return;
@@ -60,6 +79,8 @@ class HexCell {
     }
 
     private updateValue() {
+        $(this.elementHex).add(this.elementChar).toggleClass('enabled', this._enabled);
+        $(this.elementHex).add(this.elementChar).toggleClass('disabled', !this._enabled);
         if (this._enabled) {
             this.elementHex.innerText = ('00' + this._value.toString(16)).slice(-2).toUpperCase();
             this.elementChar.innerText = CType.isPrint(this._value) ? String.fromCharCode(this._value) : '.';
@@ -70,9 +91,16 @@ class HexCell {
         this.row.editor.dirty();
     }
 
-    get value() {
-        return this._value;
-    }
+    get value() { return this._value; }
+    get editor() { return this.row.editor; }
+
+    get up() { return this.row.isFirst ? null : this.editor.getCell(this.column.value, this.row.value - 1); }
+    get down() { return this.row.isLast ? null : this.editor.getCell(this.column.value, this.row.value + 1); }
+    get left() { return this.column.isFirst ? null : this.editor.getCell(this.column.value - 1, this.row.value); }
+    get right() { return this.column.isLast ? null : this.editor.getCell(this.column.value + 1, this.row.value); }
+
+    get prev() { return this.column.isFirst ? this.editor.getCell(this.editor.columnCount - 1, this.row.value - 1) : this.editor.getCell(this.column.value - 1, this.row.value); }
+    get next() { return this.column.isLast ? this.editor.getCell(0, this.row.value + 1) : this.editor.getCell(this.column.value + 1, this.row.value); }
 
     private _selected = false;
     set selected(value:boolean) {
@@ -124,7 +152,7 @@ class HexRowHead {
     }
 }
 
-class HexTextColumn {
+class HexTextRow {
     element = $('<span class="textcolumn">').get(0);
 
     constructor(public row:HexRow) {
@@ -139,26 +167,43 @@ class HexTextColumn {
 class HexRow {
     cells:HexCell[] = [];
     head:HexRowHead;
-    text:HexTextColumn;
+    text:HexTextRow;
 
-    constructor(public editor:HexEditor, public row:number, columns:number, public html:HTMLElement) {
+    constructor(public editor:HexEditor, public value:number, columns:HexColumn[], public html:HTMLElement) {
         this.head = new HexRowHead(this);
-        this.text = new HexTextColumn(this);
+        this.text = new HexTextRow(this);
         var hexcolumn = $('<span class="hexcolumn">');
         var charcolumn = $('<span class="charcolumn">');
-        for (var column = 0; column < columns; column++) {
+        columns.forEach(column => {
             var cell = new HexCell(this, column);
-            this.cells[column] = cell;
+            this.cells[column.value] = cell;
             hexcolumn.append(cell.elementHex);
             charcolumn.append(cell.elementChar);
-        }
+        });
         $(this.html).append(this.head.element);
         $(this.html).append(hexcolumn);
         $(this.html).append(charcolumn);
         $(this.html).append(this.text.element);
     }
 
-    static create(container:HexEditor, row:number, columns:number) {
+    get firstCell() { return this.cells[0]; }
+    get lastCell() { return this.cells[this.cells.length - 1]; }
+
+    get prev() { return this.isFirst ? null : this.editor.rows[this.value - 1]; }
+    get next() { return this.isLast ? null : this.editor.rows[this.value + 1]; }
+
+    get prevCyclic() { return this.editor.rows[MathUtils.modUnsigned(this.value - 1, this.editor.rowCount)]; }
+    get nextCyclic() { return this.editor.rows[MathUtils.modUnsigned(this.value + 1, this.editor.rowCount)]; }
+
+    get isFirst() { return this.value == 0; }
+    get isLast() { return this.value == this.editor.rowCount - 1; }
+
+    private _enabled:boolean;
+
+    set enabled(value:boolean) { this._enabled = value; }
+    get enabled() { return this._enabled; }
+
+    static create(container:HexEditor, row:number, columns:HexColumn[]) {
         return new HexRow(container, row, columns, $('<div class="hexrow" />').get(0));
     }
 }
@@ -188,54 +233,33 @@ class HexCursor {
         this.moveTo(this.column + dx, this.row + dy);
     }
 
-    moveLeft() {
-        if (this.isInFirstColumn) {
-            this.moveTo(this.editor.columnCount - 1, this.row - 1);
-        } else {
-            this.moveBy(-1, 0);
-        }
-    }
-    moveRight() {
-        if (this.isInLastColumn) {
-            this.moveTo(0, this.row + 1);
-        } else {
-            this.moveBy(+1, 0);
-        }
-    }
+    moveLeft() { this.moveToCell(this.cell.prev); }
+    moveRight() { this.moveToCell(this.cell.next); }
     moveUp() {
-        if (this.isInFirstRow) {
+        if (this.cell.row.isFirst) {
             this.editor.moveViewBy(-this.editor.columnCount);
         } else {
-            this.moveBy(0, -1);
+            this.moveToCell(this.cell.up);
         }
     }
     moveDown() {
-        if (this.isInLastRow) {
+        if (this.cell.row.isLast) {
             this.editor.moveViewBy(+this.editor.columnCount);
         } else {
-            this.moveBy(0, +1);
+            this.moveToCell(this.cell.down);
         }
     }
 
-    get isInFirstColumn() { return this.column == 0; }
-    get isInFirstRow() { return this.row == 0; }
-    get isInLastColumn() { return this.column == this.editor.columnCount - 1; }
-    get isInLastRow() { return this.row == this.editor.rows.length - 1; }
-
     moveNext() {
-        if (this.isInLastColumn) {
-            this.moveTo(0, this.row + 1);
-        } else {
-            this.moveTo(this.column + 1, this.row);
-        }
+        this.moveToCell(this.cell.next);
     }
 
     moveTo(column:number, row:number) {
-        this.moveToHex(this.editor.getCell(column, row));
+        this.moveToCell(this.editor.getCell(column, row));
     }
 
-    get column() { return this.cell.column; }
-    get row() { return this.cell.row.row; }
+    get column() { return this.cell.column.value; }
+    get row() { return this.cell.row.value; }
     get viewoffset() { return this.cell.viewoffset; }
     get globaloffset() { return this.cell.globaloffset; }
 
@@ -243,7 +267,8 @@ class HexCursor {
         return this.selection.isEmpty ? new HexSelection(this.editor, this.globaloffset, this.globaloffset + 1) : this.selection;
     }
 
-    moveToHex(cell:HexCell) {
+    moveToCell(cell:HexCell) {
+        if (this.cell && !cell.enabled) return;
         if (!cell) return;
         if (cell == this.cell) return;
         var oldcell = this.cell;
@@ -367,10 +392,10 @@ class HexEditor {
         return new HexSelection(this, this.offset, this.offset + this.columnCount * this.rows.length);
     }
 
-    get rowsCount() { return this.rows.length; }
+    get rowCount() { return this.rows.length; }
 
     get totalbytesinview() {
-        return this.columnCount * this.rowsCount;
+        return this.columnCount * this.rowCount;
     }
 
     ensureViewVisibleRange(globaloffset:number) {
@@ -388,9 +413,10 @@ class HexEditor {
         this.moveViewTo(this.offset + doffset);
     }
 
-    moveViewTo(offset:number) {
-        offset = Math.max(0, offset);
-        this.offset = offset;
+    moveViewTo(expectedOffset:number) {
+        var realOffset = MathUtils.clamp(expectedOffset, 0, MathUtils.floorMultiple(this.length - this.columnCount, this.columnCount));
+        //console.log("offset move: ", expectedOffset, realOffset);
+        this.offset = realOffset;
         this.updateCellsAsync();
     }
 
@@ -399,7 +425,7 @@ class HexEditor {
         return source.readAsync(this.offset, this.columnCount * this.rows.length).then((data) => {
             this.rows.forEach((row, index) => {
                 row.head.value = this.offset + index * 16;
-                row.head.enabled = ((index * 16) < data.length);
+                row.enabled = row.head.enabled = ((index * 16) < data.length);
                 row.cells.forEach((cell, offset) => {
                     if (cell.viewoffset < data.length) {
                         cell.value = data[cell.viewoffset];
@@ -471,13 +497,18 @@ class HexEditor {
         return this._encoder;
     }
 
-    columnCount = 16;
+    get columnCount() { return this.columns.length; }
+    columns:HexColumn[] = [];
 
     constructor(public element:HTMLElement) {
         this.cursor = new HexCursor(this);
 
+        for (var n = 0; n < 16; n++) {
+            this.columns[n] = new HexColumn(this, n);
+        }
+
         for (var n = 0; n < 32; n++) {
-            var row = HexRow.create(this, n, this.columnCount);
+            var row = HexRow.create(this, n, this.columns);
             this.rows[n] = row;
             $(element).append(row.html);
         }
@@ -488,10 +519,10 @@ class HexEditor {
             this.updateSelection();
         });
         this.rows[0].cells[0].value = 1;
-        this.cursor.moveToHex(this.rows[0].cells[0]);
+        this.cursor.moveToCell(this.rows[0].cells[0]);
 
         this.onCellClick.add((e) => {
-            this.cursor.moveToHex(e);
+            this.cursor.moveToCell(e);
         });
 
         this.onCellDown.add((e) => {
@@ -503,7 +534,7 @@ class HexEditor {
 
         this.onCellMove.add((e) => {
             this.cursor.selection.end = e.globaloffset;
-            this.cursor.moveToHex(e);
+            this.cursor.moveToCell(e);
             this.updateSelection();
             this.onMove.dispatch();
         });

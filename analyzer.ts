@@ -334,6 +334,7 @@ class AnalyzerMapperRenderer {
                     childs.append(this.html(e));
                 });
                 title.click(e => {
+                    window.getSelection().removeAllRanges();
                     var expanded = title.hasClass('expanded');
                     title.toggleClass('expanded', !expanded);
                     childs.toggleClass('expanded', !expanded);

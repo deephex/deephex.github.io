@@ -10,6 +10,9 @@
     <script type="text/javascript" src="templates/zip.js"></script>
     <script type="text/javascript" src="templates/deflate.js"></script>
     <style>
+        body {
+            cursor: default;
+        }
         div.hex {
             font:13px "Lucida Console", "Courier New", Courier, monospace;
             white-space: pre;
@@ -64,6 +67,9 @@
         }
         div.hex .hexrow .charcolumn .char {
             color: black;
+        }
+        div.hex .hexrow .hexcolumn .byte.enabled, div.hex .hexrow .charcolumn .char.enabled {
+            cursor: auto;
         }
         div.hex .hexrow .charcolumn .char.over, div.hex .hexrow .hexcolumn .byte.over {
             background: #eee;

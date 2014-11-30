@@ -106,22 +106,16 @@ function download(url:string, done: (data: Uint8Array) => void) {
     xhr.send();
 }
 
-function unsigned_mod(value: number, count:number) {
-    value %= 32;
-    if (value < 0) value += count;
-    return value;
-}
-
 function ror32(value: number, count:number) {
-    count = unsigned_mod(count, 32);
+    count = MathUtils.modUnsigned(count, 32);
     return value >>> count | value << (32 - count);
 }
 function ror16(value: number, count:number) {
-    count = unsigned_mod(count, 16);
+    count = MathUtils.modUnsigned(count, 16);
     return ((value >>> count) & 0xFFFF) | ((value << (16 - count)) & 0xFFFF);
 }
 function ror8(value: number, count:number) {
-    count = unsigned_mod(count, 8);
+    count = MathUtils.modUnsigned(count, 8);
     return ((value >>> count) & 0xFF) | ((value << (8 - count)) & 0xFF);
 }
 
@@ -149,8 +143,14 @@ function strpad_right(value:string, char:string, count:number) {
 
 
 class MathUtils {
+    static clamp(value: number, min: number, max:number) { return Math.min(Math.max(value, min), max); }
     static ceilMultiple(value:number, multiple:number) { return Math.ceil(value / multiple) * multiple; }
     static floorMultiple(value:number, multiple:number) { return Math.floor(value / multiple) * multiple; }
+    static modUnsigned(value: number, count:number) {
+        value %= count;
+        if (value < 0) value += count;
+        return value;
+    }
 }
 
 class BitUtils {

@@ -2,6 +2,55 @@
 /// <reference path="./underscore.d.ts" />
 /// <reference path="./es6-promise.d.ts" />
 /// <reference path="./utils.ts" />
+var HexColumn = (function () {
+    function HexColumn(editor, value) {
+        this.editor = editor;
+        this.value = value;
+    }
+    Object.defineProperty(HexColumn.prototype, "prev", {
+        get: function () {
+            return this.isFirst ? null : this.editor.columns[this.value - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexColumn.prototype, "next", {
+        get: function () {
+            return this.isLast ? null : this.editor.columns[this.value + 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexColumn.prototype, "prevCyclic", {
+        get: function () {
+            return this.editor.columns[MathUtils.modUnsigned(this.value - 1, this.editor.columnCount)];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexColumn.prototype, "nextCyclic", {
+        get: function () {
+            return this.editor.columns[MathUtils.modUnsigned(this.value + 1, this.editor.columnCount)];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexColumn.prototype, "isFirst", {
+        get: function () {
+            return this.value == 0;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexColumn.prototype, "isLast", {
+        get: function () {
+            return this.value == this.editor.columnCount - 1;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return HexColumn;
+})();
 var HexCell = (function () {
     function HexCell(row, column) {
         var _this = this;
@@ -13,23 +62,31 @@ var HexCell = (function () {
         this._selected = false;
         this.elementHex = $('<span class="byte">  </span>').get(0);
         this.elementChar = $('<span class="char"> </span>').get(0);
-        this.viewoffset = this.row.row * this.row.editor.columnCount + this.column;
+        this.viewoffset = this.row.value * this.row.editor.columnCount + this.column.value;
         $(this.elementHex).click(function (e) {
+            if (!_this.enabled)
+                return;
             _this.row.editor.onCellClick.dispatch(_this);
         });
         $(this.elementHex).mousedown(function (e) {
+            if (!_this.enabled)
+                return;
             if (e.which == 1) {
                 e.preventDefault();
                 _this.row.editor.onCellDown.dispatch(_this);
             }
         });
         $(this.elementHex).mousemove(function (e) {
+            if (!_this.enabled)
+                return;
             if (e.which == 1) {
                 e.preventDefault();
                 _this.row.editor.onCellMove.dispatch(_this);
             }
         });
         $(this.elementHex).mouseup(function (e) {
+            if (!_this.enabled)
+                return;
             if (e.which == 1) {
                 e.preventDefault();
                 _this.row.editor.onCellUp.dispatch(_this);
@@ -73,6 +130,8 @@ var HexCell = (function () {
         configurable: true
     });
     HexCell.prototype.updateValue = function () {
+        $(this.elementHex).add(this.elementChar).toggleClass('enabled', this._enabled);
+        $(this.elementHex).add(this.elementChar).toggleClass('disabled', !this._enabled);
         if (this._enabled) {
             this.elementHex.innerText = ('00' + this._value.toString(16)).slice(-2).toUpperCase();
             this.elementChar.innerText = CType.isPrint(this._value) ? String.fromCharCode(this._value) : '.';
@@ -83,6 +142,55 @@ var HexCell = (function () {
         }
         this.row.editor.dirty();
     };
+    Object.defineProperty(HexCell.prototype, "editor", {
+        get: function () {
+            return this.row.editor;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "up", {
+        get: function () {
+            return this.row.isFirst ? null : this.editor.getCell(this.column.value, this.row.value - 1);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "down", {
+        get: function () {
+            return this.row.isLast ? null : this.editor.getCell(this.column.value, this.row.value + 1);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "left", {
+        get: function () {
+            return this.column.isFirst ? null : this.editor.getCell(this.column.value - 1, this.row.value);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "right", {
+        get: function () {
+            return this.column.isLast ? null : this.editor.getCell(this.column.value + 1, this.row.value);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "prev", {
+        get: function () {
+            return this.column.isFirst ? this.editor.getCell(this.editor.columnCount - 1, this.row.value - 1) : this.editor.getCell(this.column.value - 1, this.row.value);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexCell.prototype, "next", {
+        get: function () {
+            return this.column.isLast ? this.editor.getCell(0, this.row.value + 1) : this.editor.getCell(this.column.value + 1, this.row.value);
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(HexCell.prototype, "selected", {
         get: function () {
             return this._selected;
@@ -142,38 +250,105 @@ var HexRowHead = (function () {
     };
     return HexRowHead;
 })();
-var HexTextColumn = (function () {
-    function HexTextColumn(row) {
+var HexTextRow = (function () {
+    function HexTextRow(row) {
         this.row = row;
         this.element = $('<span class="textcolumn">').get(0);
     }
-    HexTextColumn.prototype.update = function () {
+    HexTextRow.prototype.update = function () {
         var values = this.row.cells.map(function (item) { return item.value; });
         this.element.innerText = CType.ensurePrintable(this.row.editor.encoder.decode(values));
     };
-    return HexTextColumn;
+    return HexTextRow;
 })();
 var HexRow = (function () {
-    function HexRow(editor, row, columns, html) {
+    function HexRow(editor, value, columns, html) {
+        var _this = this;
         this.editor = editor;
-        this.row = row;
+        this.value = value;
         this.html = html;
         this.cells = [];
         this.head = new HexRowHead(this);
-        this.text = new HexTextColumn(this);
+        this.text = new HexTextRow(this);
         var hexcolumn = $('<span class="hexcolumn">');
         var charcolumn = $('<span class="charcolumn">');
-        for (var column = 0; column < columns; column++) {
-            var cell = new HexCell(this, column);
-            this.cells[column] = cell;
+        columns.forEach(function (column) {
+            var cell = new HexCell(_this, column);
+            _this.cells[column.value] = cell;
             hexcolumn.append(cell.elementHex);
             charcolumn.append(cell.elementChar);
-        }
+        });
         $(this.html).append(this.head.element);
         $(this.html).append(hexcolumn);
         $(this.html).append(charcolumn);
         $(this.html).append(this.text.element);
     }
+    Object.defineProperty(HexRow.prototype, "firstCell", {
+        get: function () {
+            return this.cells[0];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "lastCell", {
+        get: function () {
+            return this.cells[this.cells.length - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "prev", {
+        get: function () {
+            return this.isFirst ? null : this.editor.rows[this.value - 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "next", {
+        get: function () {
+            return this.isLast ? null : this.editor.rows[this.value + 1];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "prevCyclic", {
+        get: function () {
+            return this.editor.rows[MathUtils.modUnsigned(this.value - 1, this.editor.rowCount)];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "nextCyclic", {
+        get: function () {
+            return this.editor.rows[MathUtils.modUnsigned(this.value + 1, this.editor.rowCount)];
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "isFirst", {
+        get: function () {
+            return this.value == 0;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "isLast", {
+        get: function () {
+            return this.value == this.editor.rowCount - 1;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexRow.prototype, "enabled", {
+        get: function () {
+            return this._enabled;
+        },
+        set: function (value) {
+            this._enabled = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
     HexRow.create = function (container, row, columns) {
         return new HexRow(container, row, columns, $('<div class="hexrow" />').get(0));
     };
@@ -201,86 +376,43 @@ var HexCursor = (function () {
         this.moveTo(this.column + dx, this.row + dy);
     };
     HexCursor.prototype.moveLeft = function () {
-        if (this.isInFirstColumn) {
-            this.moveTo(this.editor.columnCount - 1, this.row - 1);
-        }
-        else {
-            this.moveBy(-1, 0);
-        }
+        this.moveToCell(this.cell.prev);
     };
     HexCursor.prototype.moveRight = function () {
-        if (this.isInLastColumn) {
-            this.moveTo(0, this.row + 1);
-        }
-        else {
-            this.moveBy(+1, 0);
-        }
+        this.moveToCell(this.cell.next);
     };
     HexCursor.prototype.moveUp = function () {
-        if (this.isInFirstRow) {
+        if (this.cell.row.isFirst) {
             this.editor.moveViewBy(-this.editor.columnCount);
         }
         else {
-            this.moveBy(0, -1);
+            this.moveToCell(this.cell.up);
         }
     };
     HexCursor.prototype.moveDown = function () {
-        if (this.isInLastRow) {
+        if (this.cell.row.isLast) {
             this.editor.moveViewBy(+this.editor.columnCount);
         }
         else {
-            this.moveBy(0, +1);
+            this.moveToCell(this.cell.down);
         }
     };
-    Object.defineProperty(HexCursor.prototype, "isInFirstColumn", {
-        get: function () {
-            return this.column == 0;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(HexCursor.prototype, "isInFirstRow", {
-        get: function () {
-            return this.row == 0;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(HexCursor.prototype, "isInLastColumn", {
-        get: function () {
-            return this.column == this.editor.columnCount - 1;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(HexCursor.prototype, "isInLastRow", {
-        get: function () {
-            return this.row == this.editor.rows.length - 1;
-        },
-        enumerable: true,
-        configurable: true
-    });
     HexCursor.prototype.moveNext = function () {
-        if (this.isInLastColumn) {
-            this.moveTo(0, this.row + 1);
-        }
-        else {
-            this.moveTo(this.column + 1, this.row);
-        }
+        this.moveToCell(this.cell.next);
     };
     HexCursor.prototype.moveTo = function (column, row) {
-        this.moveToHex(this.editor.getCell(column, row));
+        this.moveToCell(this.editor.getCell(column, row));
     };
     Object.defineProperty(HexCursor.prototype, "column", {
         get: function () {
-            return this.cell.column;
+            return this.cell.column.value;
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(HexCursor.prototype, "row", {
         get: function () {
-            return this.cell.row.row;
+            return this.cell.row.value;
         },
         enumerable: true,
         configurable: true
@@ -306,7 +438,9 @@ var HexCursor = (function () {
         enumerable: true,
         configurable: true
     });
-    HexCursor.prototype.moveToHex = function (cell) {
+    HexCursor.prototype.moveToCell = function (cell) {
+        if (this.cell && !cell.enabled)
+            return;
         if (!cell)
             return;
         if (cell == this.cell)
@@ -460,13 +594,16 @@ var HexEditor = (function () {
         this._encoder = new TextDecoderEncoding('utf-8');
         this.onMove = new Signal();
         this.offset = 0;
-        this.columnCount = 16;
+        this.columns = [];
         this._dirty = false;
         this._dirtyExec = -1;
         this.hotkeys = [];
         this.cursor = new HexCursor(this);
+        for (var n = 0; n < 16; n++) {
+            this.columns[n] = new HexColumn(this, n);
+        }
         for (var n = 0; n < 32; n++) {
-            var row = HexRow.create(this, n, this.columnCount);
+            var row = HexRow.create(this, n, this.columns);
             this.rows[n] = row;
             $(element).append(row.html);
         }
@@ -475,9 +612,9 @@ var HexEditor = (function () {
             _this.updateSelection();
         });
         this.rows[0].cells[0].value = 1;
-        this.cursor.moveToHex(this.rows[0].cells[0]);
+        this.cursor.moveToCell(this.rows[0].cells[0]);
         this.onCellClick.add(function (e) {
-            _this.cursor.moveToHex(e);
+            _this.cursor.moveToCell(e);
         });
         this.onCellDown.add(function (e) {
             _this.cursor.selection.start = e.globaloffset;
@@ -487,7 +624,7 @@ var HexEditor = (function () {
         });
         this.onCellMove.add(function (e) {
             _this.cursor.selection.end = e.globaloffset;
-            _this.cursor.moveToHex(e);
+            _this.cursor.moveToCell(e);
             _this.updateSelection();
             _this.onMove.dispatch();
         });
@@ -642,7 +779,7 @@ var HexEditor = (function () {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(HexEditor.prototype, "rowsCount", {
+    Object.defineProperty(HexEditor.prototype, "rowCount", {
         get: function () {
             return this.rows.length;
         },
@@ -651,7 +788,7 @@ var HexEditor = (function () {
     });
     Object.defineProperty(HexEditor.prototype, "totalbytesinview", {
         get: function () {
-            return this.columnCount * this.rowsCount;
+            return this.columnCount * this.rowCount;
         },
         enumerable: true,
         configurable: true
@@ -670,9 +807,10 @@ var HexEditor = (function () {
     HexEditor.prototype.moveViewBy = function (doffset) {
         this.moveViewTo(this.offset + doffset);
     };
-    HexEditor.prototype.moveViewTo = function (offset) {
-        offset = Math.max(0, offset);
-        this.offset = offset;
+    HexEditor.prototype.moveViewTo = function (expectedOffset) {
+        var realOffset = MathUtils.clamp(expectedOffset, 0, MathUtils.floorMultiple(this.length - this.columnCount, this.columnCount));
+        //console.log("offset move: ", expectedOffset, realOffset);
+        this.offset = realOffset;
         this.updateCellsAsync();
     };
     HexEditor.prototype.updateCellsAsync = function () {
@@ -681,7 +819,7 @@ var HexEditor = (function () {
         return source.readAsync(this.offset, this.columnCount * this.rows.length).then(function (data) {
             _this.rows.forEach(function (row, index) {
                 row.head.value = _this.offset + index * 16;
-                row.head.enabled = ((index * 16) < data.length);
+                row.enabled = row.head.enabled = ((index * 16) < data.length);
                 row.cells.forEach(function (cell, offset) {
                     if (cell.viewoffset < data.length) {
                         cell.value = data[cell.viewoffset];
@@ -745,6 +883,13 @@ var HexEditor = (function () {
         set: function (encoding) {
             this._encoder = encoding;
             this.rows.forEach(function (row) { return row.text.update(); });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(HexEditor.prototype, "columnCount", {
+        get: function () {
+            return this.columns.length;
         },
         enumerable: true,
         configurable: true

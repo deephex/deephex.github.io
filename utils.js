@@ -84,22 +84,16 @@ function download(url, done) {
     };
     xhr.send();
 }
-function unsigned_mod(value, count) {
-    value %= 32;
-    if (value < 0)
-        value += count;
-    return value;
-}
 function ror32(value, count) {
-    count = unsigned_mod(count, 32);
+    count = MathUtils.modUnsigned(count, 32);
     return value >>> count | value << (32 - count);
 }
 function ror16(value, count) {
-    count = unsigned_mod(count, 16);
+    count = MathUtils.modUnsigned(count, 16);
     return ((value >>> count) & 0xFFFF) | ((value << (16 - count)) & 0xFFFF);
 }
 function ror8(value, count) {
-    count = unsigned_mod(count, 8);
+    count = MathUtils.modUnsigned(count, 8);
     return ((value >>> count) & 0xFF) | ((value << (8 - count)) & 0xFF);
 }
 function htmlspecialchars(s) {
@@ -120,11 +114,20 @@ function strpad_right(value, char, count) {
 var MathUtils = (function () {
     function MathUtils() {
     }
+    MathUtils.clamp = function (value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    };
     MathUtils.ceilMultiple = function (value, multiple) {
         return Math.ceil(value / multiple) * multiple;
     };
     MathUtils.floorMultiple = function (value, multiple) {
         return Math.floor(value / multiple) * multiple;
+    };
+    MathUtils.modUnsigned = function (value, count) {
+        value %= count;
+        if (value < 0)
+            value += count;
+        return value;
     };
     return MathUtils;
 })();
