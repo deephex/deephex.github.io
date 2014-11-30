@@ -108,7 +108,7 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
         return this.first.bitoffset;
     }
     get bitcount() {
-        if (!this.hasElements) return this.scount;
+        if (!this.hasElements) return this.scount * 8;
         return (this.last.offset - this.offset) * 8 + this.last.bitcount;
     }
 }
@@ -132,10 +132,11 @@ class AnalyzerMapperPlugins {
     }
 
     static runAsync(type: AnalyzerType, editor:HexEditor) {
-        return editor.source.readAsync(0, 1024).then(data => {
+        console.info('AnalyzerMapperPlugins.runAsync()');
+        return editor.source.readAsync(0, 0x9000).then(data => {
             type.name = String(type.name).toLowerCase();
 
-            if (name == 'autodetect') {
+            if (type.name == 'autodetect') {
                 try {
                     var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map((v, k) => {
@@ -152,14 +153,21 @@ class AnalyzerMapperPlugins {
                 }
             }
 
+            console.info('detected type:', type);
+
             return type;
         }).then(type => {
+            //console.log('aaaaaaaaa');
             var e:any;
             var name = type.name;
             var mapper = new AnalyzerMapper(editor.source);
 
             var template = <AnalyzerMapperPlugin>AnalyzerMapperPlugins.templates[name];
-            if (!template) throw new Error("Can't find template '" + name + "'");
+
+            if (!template) {
+                console.error("Can't find template '" + name + "'");
+                throw new Error("Can't find template '" + name + "'");
+            }
             mapper.value = type;
 
             return template.analyzeAsync(mapper, type).then(value => {
@@ -207,6 +215,9 @@ class AnalyzerMapper {
         });
     }
 
+    get position() { return this.offset; }
+    set position(value:number) { this.offset = value; }
+
     readByte() {
         if (this.available < 0) throw new Error("No more data available");
         return this.data.getUint8Async(this.offset++);
@@ -243,7 +254,7 @@ class AnalyzerMapper {
     bits(name: string, bitcount:number, representer?: ValueRepresenter) {
         var offset = this.bitsoffset;
         return this.readBitsAsync(bitcount).then(value => {
-            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', this.addoffset + offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
             this.node.elements.push(element);
             return value;
         });
@@ -266,8 +277,14 @@ class AnalyzerMapper {
     get globaloffset() { return this.addoffset + this.offset; }
 
     u8(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u8', 1, offset => this.data.getUint8Async(offset), representer); }
+
     u16(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u16', 2, offset => this.data.getUint16Async(offset, this.little), representer); }
+    u16_le(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u16_le', 2, offset => this.data.getUint16Async(offset, true), representer); }
+    u16_be(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u16_be', 2, offset => this.data.getUint16Async(offset, false), representer); }
+
     u32(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u32', 4, offset => this.data.getUint32Async(offset, this.little), representer); }
+    u32_le(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u32_le', 4, offset => this.data.getUint32Async(offset, true), representer); }
+    u32_be(name:string, representer?: ValueRepresenter) { return this._readAsync(name, 'u32_be', 4, offset => this.data.getUint32Async(offset, false), representer); }
     str(name:string, count:number, encoding:string = 'ascii') {
         return this.data.getUint8ArrayAsync(this.offset, count).then(values => {
             var textData = new Uint8Array(values);

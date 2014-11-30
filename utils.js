@@ -38,6 +38,8 @@ var CType = (function () {
             return false;
         if (value >= 0x7F && value <= 0xA0)
             return false;
+        if (value >= 0xAD)
+            return false;
         if (value == 0x2028)
             return false;
         if (value == 0x2029)
@@ -251,6 +253,7 @@ function _spawn(generatorFunction, args) {
             var iterator = generatorFunction.apply(null, args);
         }
         catch (e) {
+            console.error(e);
             reject(e);
         }
         var next = function (first, sendValue, sendException) {
@@ -269,6 +272,7 @@ function _spawn(generatorFunction, args) {
                     return resolve(result.value);
                 }
                 else if (!result.value || result.value.then === undefined) {
+                    console.error("Invalid result: '" + result.value + "'");
                     return reject(new Error("Invalid result: '" + result.value + "'"));
                 }
                 else {
@@ -276,6 +280,7 @@ function _spawn(generatorFunction, args) {
                 }
             }
             catch (e) {
+                console.error(e);
                 return reject(e);
             }
             return undefined;

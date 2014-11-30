@@ -52,6 +52,7 @@ class CType {
     static isPrint(value:Number) {
         if (value < 32) return false;
         if (value >= 0x7F && value <= 0xA0) return false;
+        if (value >= 0xAD) return false;
         if (value == 0x2028) return false;
         if (value == 0x2029) return false;
         if (value == 0xFFFD) return false;
@@ -278,6 +279,7 @@ function _spawn<TR>(generatorFunction: () => TR, args: any[]): Promise<TR> {
         try {
             var iterator = <Generator><any>generatorFunction.apply(null, args);
         } catch (e) {
+            console.error(e);
             reject(e);
         }
 
@@ -295,11 +297,13 @@ function _spawn<TR>(generatorFunction: () => TR, args: any[]): Promise<TR> {
                 if (result.done) {
                     return resolve(result.value);
                 } else if (!result.value || result.value.then === undefined) {
+                    console.error("Invalid result: '" + result.value + "'");
                     return reject(new Error("Invalid result: '" + result.value + "'"));
                 } else {
                     result.value.then(((value) => next(false, value, undefined)), ((error) => next(false, undefined, error)));
                 }
             } catch (e) {
+                console.error(e);
                 return reject(e);
             }
 

@@ -163,7 +163,7 @@ var AnalyzerMapperNode = (function (_super) {
     Object.defineProperty(AnalyzerMapperNode.prototype, "bitcount", {
         get: function () {
             if (!this.hasElements)
-                return this.scount;
+                return this.scount * 8;
             return (this.last.offset - this.offset) * 8 + this.last.bitcount;
         },
         enumerable: true,
@@ -191,9 +191,10 @@ var AnalyzerMapperPlugins = (function () {
         return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyzeAsync));
     };
     AnalyzerMapperPlugins.runAsync = function (type, editor) {
-        return editor.source.readAsync(0, 1024).then(function (data) {
+        console.info('AnalyzerMapperPlugins.runAsync()');
+        return editor.source.readAsync(0, 0x9000).then(function (data) {
             type.name = String(type.name).toLowerCase();
-            if (name == 'autodetect') {
+            if (type.name == 'autodetect') {
                 try {
                     var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map(function (v, k) {
@@ -207,14 +208,18 @@ var AnalyzerMapperPlugins = (function () {
                     console.error(e);
                 }
             }
+            console.info('detected type:', type);
             return type;
         }).then(function (type) {
+            //console.log('aaaaaaaaa');
             var e;
             var name = type.name;
             var mapper = new AnalyzerMapper(editor.source);
             var template = AnalyzerMapperPlugins.templates[name];
-            if (!template)
+            if (!template) {
+                console.error("Can't find template '" + name + "'");
                 throw new Error("Can't find template '" + name + "'");
+            }
             mapper.value = type;
             return template.analyzeAsync(mapper, type).then(function (value) {
             }, function (_e) {
@@ -270,6 +275,16 @@ var AnalyzerMapper = (function () {
             return value;
         });
     };
+    Object.defineProperty(AnalyzerMapper.prototype, "position", {
+        get: function () {
+            return this.offset;
+        },
+        set: function (value) {
+            this.offset = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
     AnalyzerMapper.prototype.readByte = function () {
         if (this.available < 0)
             throw new Error("No more data available");
@@ -306,7 +321,7 @@ var AnalyzerMapper = (function () {
         var _this = this;
         var offset = this.bitsoffset;
         return this.readBitsAsync(bitcount).then(function (value) {
-            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', _this.addoffset + _this.offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
+            var element = new AnalyzerMapperElement(name, 'bits[' + bitcount + ']', _this.addoffset + offset, 0, MathUtils.ceilMultiple(bitcount, 8), value, representer);
             _this.node.elements.push(element);
             return value;
         });
@@ -349,9 +364,25 @@ var AnalyzerMapper = (function () {
         var _this = this;
         return this._readAsync(name, 'u16', 2, function (offset) { return _this.data.getUint16Async(offset, _this.little); }, representer);
     };
+    AnalyzerMapper.prototype.u16_le = function (name, representer) {
+        var _this = this;
+        return this._readAsync(name, 'u16_le', 2, function (offset) { return _this.data.getUint16Async(offset, true); }, representer);
+    };
+    AnalyzerMapper.prototype.u16_be = function (name, representer) {
+        var _this = this;
+        return this._readAsync(name, 'u16_be', 2, function (offset) { return _this.data.getUint16Async(offset, false); }, representer);
+    };
     AnalyzerMapper.prototype.u32 = function (name, representer) {
         var _this = this;
         return this._readAsync(name, 'u32', 4, function (offset) { return _this.data.getUint32Async(offset, _this.little); }, representer);
+    };
+    AnalyzerMapper.prototype.u32_le = function (name, representer) {
+        var _this = this;
+        return this._readAsync(name, 'u32_le', 4, function (offset) { return _this.data.getUint32Async(offset, true); }, representer);
+    };
+    AnalyzerMapper.prototype.u32_be = function (name, representer) {
+        var _this = this;
+        return this._readAsync(name, 'u32_be', 4, function (offset) { return _this.data.getUint32Async(offset, false); }, representer);
     };
     AnalyzerMapper.prototype.str = function (name, count, encoding) {
         var _this = this;
