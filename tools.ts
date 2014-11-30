@@ -38,11 +38,9 @@ class HexTools {
             var file = (<DragEvent>e).dataTransfer.files[0];
             var reader = new FileReader();
             reader.onload = (event) => {
-                editor.setData(new Uint8Array((<any>event.target).result));
-                //console.log(event.target);
-                //holder.style.background = 'url(' + event.target.result + ') no-repeat center';
-                //this.onFileLoaded.dispatch();
                 $(outputelement).html('');
+                editor.setData(new Uint8Array((<any>event.target).result));
+                this.analyze(new AnalyzerType('autodetect'));
             };
             console.log(file);
             reader.readAsArrayBuffer(file);
@@ -50,7 +48,7 @@ class HexTools {
             return false;
         };
 
-        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'deflate', 'zlib'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
+        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
             var value = $(e.target).val();
             this.analyze(new AnalyzerType(value));
             $(e.target).val('');

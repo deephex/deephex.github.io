@@ -205,6 +205,7 @@ var AnalyzerMapperPlugins = (function () {
                     console.log(JSON.stringify(items));
                     var item = items[0];
                     name = item.name;
+                    type.name = name;
                 }
                 catch (e) {
                     console.error(e);

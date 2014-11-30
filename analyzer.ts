@@ -148,6 +148,7 @@ class AnalyzerMapperPlugins {
 
                     var item = items[0];
                     name = item.name;
+                    type.name = name;
                     //items.sort(v => v.priority)
                 } catch (e) {
                     console.error(e);

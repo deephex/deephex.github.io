@@ -321,6 +321,7 @@
           <item url="file://$PROJECT_DIR$/editor.js" />
           <item url="file://$PROJECT_DIR$/tools.js" />
           <item url="file://$PROJECT_DIR$/templates/zip.js" />
+          <item url="file://$PROJECT_DIR$/templates/swf.js" />
         </sourceFilesUrls>
       </properties>
       <CLASSES>
@@ -332,6 +333,7 @@
         <root url="file://$PROJECT_DIR$/editor.js" />
         <root url="file://$PROJECT_DIR$/tools.js" />
         <root url="file://$PROJECT_DIR$/templates/zip.js" />
+        <root url="file://$PROJECT_DIR$/templates/swf.js" />
       </CLASSES>
       <JAVADOC />
       <SOURCES />

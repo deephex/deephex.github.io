@@ -34,17 +34,15 @@ var HexTools = (function () {
             var file = e.dataTransfer.files[0];
             var reader = new FileReader();
             reader.onload = function (event) {
-                editor.setData(new Uint8Array(event.target.result));
-                //console.log(event.target);
-                //holder.style.background = 'url(' + event.target.result + ') no-repeat center';
-                //this.onFileLoaded.dispatch();
                 $(outputelement).html('');
+                editor.setData(new Uint8Array(event.target.result));
+                _this.analyze(new AnalyzerType('autodetect'));
             };
             console.log(file);
             reader.readAsArrayBuffer(file);
             return false;
         };
-        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
+        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
             var value = $(e.target).val();
             _this.analyze(new AnalyzerType(value));
             $(e.target).val('');
