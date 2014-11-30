@@ -33,9 +33,20 @@ var AnalyzerMapperElement = (function () {
     };
     return AnalyzerMapperElement;
 })();
+var AnalyzerType = (function () {
+    function AnalyzerType(name, arguments) {
+        this.name = name;
+        this.arguments = arguments;
+        if (!this.arguments)
+            this.arguments = [];
+    }
+    AnalyzerType.prototype.toString = function () {
+        return this.arguments.length ? (this.name + ':' + this.arguments.join(',')) : this.name;
+    };
+    return AnalyzerType;
+})();
 var HexChunk = (function () {
     function HexChunk(data, type) {
-        if (type === void 0) { type = 'autodetect2'; }
         this.data = data;
         this.type = type;
     }
@@ -175,8 +186,9 @@ var AnalyzerMapperPlugins = (function () {
     AnalyzerMapperPlugins.register = function (name, detect, analyze) {
         return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
     };
-    AnalyzerMapperPlugins.runAsync = function (name, editor) {
+    AnalyzerMapperPlugins.runAsync = function (type, editor) {
         return editor.getDataAsync().then(function (data) {
+            var name = type.name;
             name = String(name).toLowerCase();
             var dataview = new DataView(data.buffer);
             var mapper = new AnalyzerMapper(dataview);
@@ -198,7 +210,8 @@ var AnalyzerMapperPlugins = (function () {
             try {
                 if (!template)
                     throw new Error("Can't find template '" + name + "'");
-                template.analyze(mapper);
+                mapper.value = type;
+                template.analyze(mapper, type);
             }
             catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
@@ -350,7 +363,7 @@ var AnalyzerMapper = (function () {
         return mapper;
     };
     AnalyzerMapper.prototype.chunk = function (name, count, type, representer) {
-        if (type === void 0) { type = 'autodetect3'; }
+        if (type === void 0) { type = null; }
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
         element.value = new HexChunk(this.readBytes(count), type);
         this.node.elements.push(element);
@@ -360,17 +373,28 @@ var AnalyzerMapper = (function () {
         if (expanded === void 0) { expanded = true; }
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        var value = callback(groupnode);
-        groupnode.value = value;
-        groupnode.expanded = expanded;
-        this.node = parentnode;
-        this.node.elements.push(groupnode);
+        try {
+            var value = callback(groupnode);
+        }
+        finally {
+            groupnode.value = value;
+            groupnode.expanded = expanded;
+            this.node = parentnode;
+            this.node.elements.push(groupnode);
+        }
+    };
+    AnalyzerMapper.prototype.structNoExpand = function (name, callback) {
+        return this.struct(name, callback, false);
     };
     AnalyzerMapper.prototype.tvalueOffset = function (callback) {
         var old = this.toffset;
         this.toffset = this.offset;
-        callback();
-        this.toffset = old;
+        try {
+            callback();
+        }
+        finally {
+            this.toffset = old;
+        }
     };
     AnalyzerMapper.prototype.tvalue = function (name, type, value, representer) {
         this.node.elements.push(new AnalyzerMapperElement(name, type, this.toffset, 0, (this.offset - this.toffset) * 8, value, representer));

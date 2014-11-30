@@ -60,14 +60,13 @@ class HexTools {
         $(element).append($('<input type="button" value="lower" />').click(() => { this.lower(); }));
         $(element).append($('<input type="button" value="output_as_hex" />').click(() => { this.outputHex(); }));
         $(element).append($('<input type="button" value="output_as_c" />').click(() => { this.outputC(); }));
-        $(element).append($('<input type="button" value="hash" />').click(() => { this.hash(); }));
-        $(element).append($('<input type="button" value="analyze" />').click(() => { this.analyze(); }));
-        $(element).append($('<input type="button" value="load sample" />').click(() => { this.loadsample(); }));
-        $(element).append($('<input type="button" value="load sample 2" />').click(() => { this.loadsample2(); }));
-        $(element).append($('<input type="button" value="load sample 3" />').click(() => { this.loadsample3(); }));
-        $(element).append($('<input type="button" value="load deflate test" />').click(() => { this.loadsample4(); }));
-        $(element).append($('<input type="button" value="load deflate test (2)" />').click(() => { this.loadsample5(); }));
-        $(element).append($('<input type="button" value="load deflate test (3)" />').click(() => { this.loadsample6(); }));
+        $(element).append($('<br />'));
+        $(element).append($('<input type="button" value="load small png" />').click(() => { this.loadSmallPngWithLotOfChunks(); }));
+        $(element).append($('<input type="button" value="load zip file" />').click(() => { this.loadZipFile(); }));
+        $(element).append($('<input type="button" value="load medium png" />').click(() => { this.loadMediumPng(); }));
+        $(element).append($('<input type="button" value="load deflate1" />').click(() => { this.loadDeflate1(); }));
+        $(element).append($('<input type="button" value="load deflate2" />').click(() => { this.loadDeflate2(); }));
+        $(element).append($('<input type="button" value="load deflate3" />').click(() => { this.loadDeflate3(); }));
         var info = $('<div>-</div>');
         $(element).append(info);
         editor.onMove.add(() => {
@@ -85,7 +84,7 @@ class HexTools {
 
     }
 
-    private _loadsample(name:string, type:string) {
+    private _loadsample(name:string, type:AnalyzerType) {
         download(name, (data) => {
             this.editor.setData(data);
             AnalyzerMapperPlugins.runAsync(type, this.editor).then(result => {
@@ -97,18 +96,12 @@ class HexTools {
         });
     }
 
-    loadsample() { this._loadsample('check.png', 'PNG'); }
-    loadsample2() { this._loadsample('zipfile.zip', 'ZIP'); }
-    loadsample3() { this._loadsample('scratch.png', 'PNG'); }
-    loadsample4() { this._loadsample('test.deflate', 'DEFLATE'); }
-    loadsample5() { this._loadsample('test2.deflate', 'DEFLATE'); }
-    loadsample6() { this._loadsample('test3.deflate', 'DEFLATE'); }
-
-    hash() {
-    }
-
-    analyze() {
-    }
+    loadSmallPngWithLotOfChunks() { this._loadsample('check.png', new AnalyzerType('png')); }
+    loadZipFile() { this._loadsample('zipfile.zip', new AnalyzerType('zip')); }
+    loadMediumPng() { this._loadsample('scratch.png', new AnalyzerType('png')); }
+    loadDeflate1() { this._loadsample('test.deflate', new AnalyzerType('deflate')); }
+    loadDeflate2() { this._loadsample('test2.deflate', new AnalyzerType('deflate')); }
+    loadDeflate3() { this._loadsample('test3.deflate', new AnalyzerType('deflate')); }
 
     outputHex() {
         var out = '';

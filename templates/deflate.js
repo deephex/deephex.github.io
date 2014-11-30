@@ -3,9 +3,35 @@
 ///<reference path="../tools.ts" />
 ///<reference path="../analyzer.ts" />
 // http://www.gzip.org/zlib/rfc-deflate.html
-AnalyzerMapperPlugins.register('DEFLATE', function (data) {
+AnalyzerMapperPlugins.register('zlib', function (data) {
     return 0.1;
-}, function (m) {
+}, function (m, type) {
+    // https://www.ietf.org/rfc/rfc1950.txt
+    m.node.name = 'zlib';
+    var hasDict = false;
+    m.struct('CMF', function () {
+        m.bits('compression_method', 4, EnumRepresenter({
+            8: 'deflate',
+            15: 'reserved'
+        }));
+        m.bits('window_size', 4, new ValueRepresenter(function (v) {
+            return ((1 << (v + 8)) / 1024) + 'KB';
+        }));
+    });
+    m.struct('FLG', function () {
+        m.bits('fcheck', 5, BinRepresenter);
+        hasDict = m.bits('fdic', 1, BoolRepresenter) != 0;
+        m.bits('flevel', 2, EnumRepresenter({ 0: 'fastest', 1: 'fast', 2: 'default', 3: 'maximum' }));
+    });
+    if (hasDict)
+        throw new Error("Not supported feed dict");
+    var chunk = m.chunk('data', m.available, new AnalyzerType('deflate', type.arguments));
+    m.value = chunk.value;
+});
+AnalyzerMapperPlugins.register('deflate', function (data) {
+    return 0.1;
+}, function (m, type) {
+    // https://www.ietf.org/rfc/rfc1951.txt
     m.node.name = 'deflate';
     var lengths0 = new Array(287);
     for (var n = 0; n <= 143; n++)
@@ -187,7 +213,7 @@ AnalyzerMapperPlugins.register('DEFLATE', function (data) {
                                         }
                                         m.tvalue('length', type, length);
                                         m.tvalue('distance', type, distance);
-                                        return new HexChunk(lzchunk, 'binary');
+                                        return new HexChunk(lzchunk, new AnalyzerType('binary'));
                                     }, false);
                                 }
                             });
@@ -200,6 +226,6 @@ AnalyzerMapperPlugins.register('DEFLATE', function (data) {
             }
         });
     }
-    m.value = new HexChunk(out, 'autodetect');
+    m.value = new HexChunk(out, type.arguments ? new AnalyzerType(type.arguments[0], type.arguments.slice(1)) : null);
 });
 //# sourceMappingURL=deflate.js.map

@@ -16,7 +16,7 @@ var DOS_DATE_ValueRepresenter = new ValueRepresenter(function (dostime) {
 });
 AnalyzerMapperPlugins.register('ZIP', function (data) {
     return (String.fromCharCode(data.getUint8(0), data.getUint8(1)) == 'PK') ? 1 : 0;
-}, function (m) {
+}, function (m, type) {
     m.node.name = 'zip';
     m.little = true;
     var entrycount = 0;
@@ -95,7 +95,7 @@ AnalyzerMapperPlugins.register('ZIP', function (data) {
                     var extrafield_length = m.u16('extrafield_length');
                     var filename = m.str('filename', filename_length);
                     m.subs('extra', extrafield_length);
-                    m.chunk('content', compressed_size, CompressionMethodEnumValues[compression_method]);
+                    m.chunk('content', compressed_size, new AnalyzerType(CompressionMethodEnumValues[compression_method], ['autodetect']));
                     return filename;
                     break;
                 case 0x0605:

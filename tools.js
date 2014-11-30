@@ -106,29 +106,24 @@ var HexTools = (function () {
         $(element).append($('<input type="button" value="output_as_c" />').click(function () {
             _this.outputC();
         }));
-        $(element).append($('<input type="button" value="hash" />').click(function () {
-            _this.hash();
+        $(element).append($('<br />'));
+        $(element).append($('<input type="button" value="load small png" />').click(function () {
+            _this.loadSmallPngWithLotOfChunks();
         }));
-        $(element).append($('<input type="button" value="analyze" />').click(function () {
-            _this.analyze();
+        $(element).append($('<input type="button" value="load zip file" />').click(function () {
+            _this.loadZipFile();
         }));
-        $(element).append($('<input type="button" value="load sample" />').click(function () {
-            _this.loadsample();
+        $(element).append($('<input type="button" value="load medium png" />').click(function () {
+            _this.loadMediumPng();
         }));
-        $(element).append($('<input type="button" value="load sample 2" />').click(function () {
-            _this.loadsample2();
+        $(element).append($('<input type="button" value="load deflate1" />').click(function () {
+            _this.loadDeflate1();
         }));
-        $(element).append($('<input type="button" value="load sample 3" />').click(function () {
-            _this.loadsample3();
+        $(element).append($('<input type="button" value="load deflate2" />').click(function () {
+            _this.loadDeflate2();
         }));
-        $(element).append($('<input type="button" value="load deflate test" />').click(function () {
-            _this.loadsample4();
-        }));
-        $(element).append($('<input type="button" value="load deflate test (2)" />').click(function () {
-            _this.loadsample5();
-        }));
-        $(element).append($('<input type="button" value="load deflate test (3)" />').click(function () {
-            _this.loadsample6();
+        $(element).append($('<input type="button" value="load deflate3" />').click(function () {
+            _this.loadDeflate3();
         }));
         var info = $('<div>-</div>');
         $(element).append(info);
@@ -162,27 +157,23 @@ var HexTools = (function () {
             });
         });
     };
-    HexTools.prototype.loadsample = function () {
-        this._loadsample('check.png', 'PNG');
+    HexTools.prototype.loadSmallPngWithLotOfChunks = function () {
+        this._loadsample('check.png', new AnalyzerType('png'));
     };
-    HexTools.prototype.loadsample2 = function () {
-        this._loadsample('zipfile.zip', 'ZIP');
+    HexTools.prototype.loadZipFile = function () {
+        this._loadsample('zipfile.zip', new AnalyzerType('zip'));
     };
-    HexTools.prototype.loadsample3 = function () {
-        this._loadsample('scratch.png', 'PNG');
+    HexTools.prototype.loadMediumPng = function () {
+        this._loadsample('scratch.png', new AnalyzerType('png'));
     };
-    HexTools.prototype.loadsample4 = function () {
-        this._loadsample('test.deflate', 'DEFLATE');
+    HexTools.prototype.loadDeflate1 = function () {
+        this._loadsample('test.deflate', new AnalyzerType('deflate'));
     };
-    HexTools.prototype.loadsample5 = function () {
-        this._loadsample('test2.deflate', 'DEFLATE');
+    HexTools.prototype.loadDeflate2 = function () {
+        this._loadsample('test2.deflate', new AnalyzerType('deflate'));
     };
-    HexTools.prototype.loadsample6 = function () {
-        this._loadsample('test3.deflate', 'DEFLATE');
-    };
-    HexTools.prototype.hash = function () {
-    };
-    HexTools.prototype.analyze = function () {
+    HexTools.prototype.loadDeflate3 = function () {
+        this._loadsample('test3.deflate', new AnalyzerType('deflate'));
     };
     HexTools.prototype.outputHex = function () {
         var _this = this;

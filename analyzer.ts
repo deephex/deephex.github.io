@@ -16,8 +16,16 @@ class AnalyzerMapperElement {
     }
 }
 
+class AnalyzerType {
+    constructor(public name:string, public arguments?:any[]) {
+        if (!this.arguments) this.arguments = [];
+    }
+
+    toString() { return this.arguments.length ? (this.name + ':' + this.arguments.join(',')) : this.name; }
+}
+
 class HexChunk {
-    constructor(public data:number[], public type:string = 'autodetect2') {
+    constructor(public data:number[], public type?:AnalyzerType) {
     }
 
     toHtml(editor:HexEditor) {
@@ -104,7 +112,7 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
 }
 
 class AnalyzerMapperPlugin {
-    constructor(public name:string, public detect:(data:DataView) => number, public analyze:(mapper:AnalyzerMapper) => void) {
+    constructor(public name:string, public detect:(data:DataView) => number, public analyze:(mapper:AnalyzerMapper, type:AnalyzerType) => void) {
     }
 }
 
@@ -117,12 +125,13 @@ class AnalyzerMapperPlugins {
         this.templates[name.toLowerCase()] = plugin;
     }
 
-    static register(name:string, detect:(data:DataView) => number, analyze:(mapper:AnalyzerMapper) => void) {
+    static register(name:string, detect:(data:DataView) => number, analyze:(mapper:AnalyzerMapper, type:AnalyzerType) => void) {
         return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyze));
     }
 
-    static runAsync(name: string, editor:HexEditor) {
+    static runAsync(type: AnalyzerType, editor:HexEditor) {
         return editor.getDataAsync().then(data => {
+            var name = type.name;
             name = String(name).toLowerCase();
             var dataview = new DataView(data.buffer);
             var mapper = new AnalyzerMapper(dataview);
@@ -147,7 +156,8 @@ class AnalyzerMapperPlugins {
 
             try {
                 if (!template) throw new Error("Can't find template '" + name + "'");
-                template.analyze(mapper);
+                mapper.value = type;
+                template.analyze(mapper, type);
             } catch (_e) {
                 mapper.node.elements.push(new AnalyzerMapperElement('error', 'error', 0, 0, 0, _e, ErrorRepresenter));
                 console.error(_e);
@@ -260,7 +270,7 @@ class AnalyzerMapper {
         }
         return mapper;
     }
-    chunk(name:string, count:number, type:string = 'autodetect3', representer?: ValueRepresenter) {
+    chunk(name:string, count:number, type:AnalyzerType = null, representer?: ValueRepresenter) {
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
         element.value = new HexChunk(this.readBytes(count), type);
         this.node.elements.push(element);
@@ -270,11 +280,18 @@ class AnalyzerMapper {
     struct(name:string, callback: (node?:AnalyzerMapperNode) => void, expanded:boolean = true) {
         var parentnode = this.node;
         var groupnode = this.node = new AnalyzerMapperNode(name, this.node);
-        var value = callback(groupnode);
-        groupnode.value = value;
-        groupnode.expanded = expanded;
-        this.node = parentnode;
-        this.node.elements.push(groupnode);
+        try {
+            var value = callback(groupnode);
+        } finally {
+            groupnode.value = value;
+            groupnode.expanded = expanded;
+            this.node = parentnode;
+            this.node.elements.push(groupnode);
+        }
+    }
+
+    structNoExpand(name:string, callback: (node?:AnalyzerMapperNode) => void) {
+        return this.struct(name, callback, false);
     }
 
     toffset = 0;
@@ -282,8 +299,11 @@ class AnalyzerMapper {
     tvalueOffset<T>(callback: () => void) {
         var old = this.toffset;
         this.toffset = this.offset;
-        callback();
-        this.toffset = old;
+        try {
+            callback();
+        } finally {
+            this.toffset = old;
+        }
     }
 
     tvalue<T>(name:string, type:string, value:T, representer?: ValueRepresenter) {

@@ -5,11 +5,41 @@
 
 // http://www.gzip.org/zlib/rfc-deflate.html
 
-AnalyzerMapperPlugins.register('DEFLATE',
+AnalyzerMapperPlugins.register('zlib',
     (data:DataView) => {
         return 0.1;
     },
-    (m:AnalyzerMapper) => {
+    (m:AnalyzerMapper, type:AnalyzerType) => {
+        // https://www.ietf.org/rfc/rfc1950.txt
+        m.node.name = 'zlib';
+        var hasDict = false;
+        m.struct('CMF', () => {
+            m.bits('compression_method', 4, EnumRepresenter({
+                8: 'deflate',
+                15: 'reserved'
+            }));
+            m.bits('window_size', 4, new ValueRepresenter(v => {
+                return ((1 << (v + 8)) / 1024) + 'KB';
+            }));
+        });
+        m.struct('FLG', () => {
+            m.bits('fcheck', 5, BinRepresenter);
+            hasDict = m.bits('fdic', 1, BoolRepresenter) != 0;
+            m.bits('flevel', 2, EnumRepresenter({ 0: 'fastest', 1: 'fast', 2: 'default', 3: 'maximum'}));
+        });
+        if (hasDict) throw new Error("Not supported feed dict");
+        var chunk = m.chunk('data', m.available, new AnalyzerType('deflate', type.arguments));
+        m.value = chunk.value;
+    }
+);
+
+
+AnalyzerMapperPlugins.register('deflate',
+    (data:DataView) => {
+        return 0.1;
+    },
+    (m:AnalyzerMapper, type:AnalyzerType) => {
+        // https://www.ietf.org/rfc/rfc1951.txt
         m.node.name = 'deflate';
         var lengths0 = new Array(287);
         for (var n = 0; n <= 143; n++) lengths0[n] = 8;
@@ -196,7 +226,7 @@ AnalyzerMapperPlugins.register('DEFLATE',
                                             m.tvalue('length', type, length);
                                             m.tvalue('distance', type, distance);
 
-                                            return new HexChunk(lzchunk, 'binary');
+                                            return new HexChunk(lzchunk, new AnalyzerType('binary'));
                                         }, false);
                                     }
                                 });
@@ -211,7 +241,7 @@ AnalyzerMapperPlugins.register('DEFLATE',
         }
 
 
-        m.value = new HexChunk(out, 'autodetect');
+        m.value = new HexChunk(out, type.arguments ? new AnalyzerType(type.arguments[0], type.arguments.slice(1)) : null);
     });
 
 // https://github.com/nayuki/DEFLATE/blob/master/src/nayuki/deflate/Decompressor.java
