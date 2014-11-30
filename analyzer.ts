@@ -18,6 +18,7 @@ class AnalyzerMapperElement {
 
 class AnalyzerType {
     constructor(public name:string, public arguments?:any[]) {
+        if (!this.name) this.name = 'autodetect';
         if (!this.arguments) this.arguments = [];
     }
 
@@ -26,6 +27,7 @@ class AnalyzerType {
 
 class HexChunk {
     constructor(public data:number[], public type?:AnalyzerType) {
+        if (!this.type) this.type = new AnalyzerType('autodetect');
     }
 
     toHtml(editor:HexEditor) {

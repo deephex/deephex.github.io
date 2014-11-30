@@ -19,6 +19,42 @@ class HexTools {
             this.bitCount = parseInt($(e.target).val());
             //console.log(this.bits);
         }));
+        $(document).on('dragover', e => {
+            $(editor.element).addClass('drag');
+            return false;
+        });
+
+        $(document).on('dragend', e => {
+            $(editor.element).removeClass('drag');
+            return false;
+        });
+
+        document.ondrop = (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            $(editor.element).removeClass('drag');
+
+            var file = (<DragEvent>e).dataTransfer.files[0];
+            var reader = new FileReader();
+            reader.onload = (event) => {
+                editor.setData(new Uint8Array((<any>event.target).result));
+                //console.log(event.target);
+                //holder.style.background = 'url(' + event.target.result + ') no-repeat center';
+                //this.onFileLoaded.dispatch();
+                $(outputelement).html('');
+            };
+            console.log(file);
+            reader.readAsArrayBuffer(file);
+
+            return false;
+        };
+
+        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'deflate', 'zlib'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
+            var value = $(e.target).val();
+            this.analyze(new AnalyzerType(value));
+            $(e.target).val('');
+        }));
         $(element).append($('<select>' + ['little-endian', 'big-endian'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
             this.little = (('' + $(e.target).val()).indexOf('little') >= 0);
         }));
@@ -87,12 +123,16 @@ class HexTools {
     private _loadsample(name:string, type:AnalyzerType) {
         download(name, (data) => {
             this.editor.setData(data);
-            AnalyzerMapperPlugins.runAsync(type, this.editor).then(result => {
-                console.log(result.node);
-                if (result.error) console.error(result.error);
-                $('#hexoutput').html('');
-                $('#hexoutput').append(result.element);
-            });
+            this.analyze(type);
+        });
+    }
+
+    analyze(type:AnalyzerType) {
+        AnalyzerMapperPlugins.runAsync(type, this.editor).then(result => {
+            console.log(result.node);
+            if (result.error) console.error(result.error);
+            $('#hexoutput').html('');
+            $('#hexoutput').append(result.element);
         });
     }
 

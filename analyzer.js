@@ -37,6 +37,8 @@ var AnalyzerType = (function () {
     function AnalyzerType(name, arguments) {
         this.name = name;
         this.arguments = arguments;
+        if (!this.name)
+            this.name = 'autodetect';
         if (!this.arguments)
             this.arguments = [];
     }
@@ -49,6 +51,8 @@ var HexChunk = (function () {
     function HexChunk(data, type) {
         this.data = data;
         this.type = type;
+        if (!this.type)
+            this.type = new AnalyzerType('autodetect');
     }
     HexChunk.prototype.toHtml = function (editor) {
         var _this = this;

@@ -19,6 +19,36 @@ var HexTools = (function () {
             _this.bitCount = parseInt($(e.target).val());
             //console.log(this.bits);
         }));
+        $(document).on('dragover', function (e) {
+            $(editor.element).addClass('drag');
+            return false;
+        });
+        $(document).on('dragend', function (e) {
+            $(editor.element).removeClass('drag');
+            return false;
+        });
+        document.ondrop = function (e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            $(editor.element).removeClass('drag');
+            var file = e.dataTransfer.files[0];
+            var reader = new FileReader();
+            reader.onload = function (event) {
+                editor.setData(new Uint8Array(event.target.result));
+                //console.log(event.target);
+                //holder.style.background = 'url(' + event.target.result + ') no-repeat center';
+                //this.onFileLoaded.dispatch();
+                $(outputelement).html('');
+            };
+            console.log(file);
+            reader.readAsArrayBuffer(file);
+            return false;
+        };
+        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
+            var value = $(e.target).val();
+            _this.analyze(new AnalyzerType(value));
+            $(e.target).val('');
+        }));
         $(element).append($('<select>' + ['little-endian', 'big-endian'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
             _this.little = (('' + $(e.target).val()).indexOf('little') >= 0);
         }));
@@ -148,13 +178,16 @@ var HexTools = (function () {
         var _this = this;
         download(name, function (data) {
             _this.editor.setData(data);
-            AnalyzerMapperPlugins.runAsync(type, _this.editor).then(function (result) {
-                console.log(result.node);
-                if (result.error)
-                    console.error(result.error);
-                $('#hexoutput').html('');
-                $('#hexoutput').append(result.element);
-            });
+            _this.analyze(type);
+        });
+    };
+    HexTools.prototype.analyze = function (type) {
+        AnalyzerMapperPlugins.runAsync(type, this.editor).then(function (result) {
+            console.log(result.node);
+            if (result.error)
+                console.error(result.error);
+            $('#hexoutput').html('');
+            $('#hexoutput').append(result.element);
         });
     };
     HexTools.prototype.loadSmallPngWithLotOfChunks = function () {

@@ -589,6 +589,7 @@ var HexEditor = (function () {
         this.onCellDown = new Signal();
         this.onCellMove = new Signal();
         this.onCellUp = new Signal();
+        this.onSourceChanged = new Signal();
         this.onSelectionChanged = new Signal();
         this._source = new ArrayHexSource(new Uint8Array(1024));
         this._encoder = new TextDecoderEncoding('utf-8');
@@ -646,6 +647,7 @@ var HexEditor = (function () {
             }
             e.preventDefault();
         });
+        //element.ondrop = (e:Event) => { };
         $(document).keydown(function (e) {
             switch (e.keyCode) {
                 case 9:
@@ -768,6 +770,7 @@ var HexEditor = (function () {
             this._source = value;
             this.offset = 0;
             this.updateCellsAsync();
+            this.onSourceChanged.dispatch();
         },
         enumerable: true,
         configurable: true

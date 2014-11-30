@@ -365,6 +365,7 @@ class HexEditor {
     onCellDown = new Signal<HexCell>();
     onCellMove = new Signal<HexCell>();
     onCellUp = new Signal<HexCell>();
+    onSourceChanged = new Signal();
     onSelectionChanged = new Signal();
     private _source:HexSource = new ArrayHexSource(new Uint8Array(1024));
     private _encoder:Encoding = new TextDecoderEncoding('utf-8');
@@ -384,6 +385,7 @@ class HexEditor {
         this._source = value;
         this.offset = 0;
         this.updateCellsAsync();
+        this.onSourceChanged.dispatch();
     }
 
     offset = 0;
@@ -560,6 +562,9 @@ class HexEditor {
             }
             e.preventDefault();
         });
+
+
+        //element.ondrop = (e:Event) => { };
 
         $(document).keydown(e => {
             //console.log(e);
