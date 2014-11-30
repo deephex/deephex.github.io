@@ -571,16 +571,18 @@ var HexSourceSlice = (function () {
         enumerable: true,
         configurable: true
     });
-    HexSourceSlice.prototype.readAsync = function (offset, size) {
+    HexSourceSlice.prototype.readAsync = function (offset, size, buffer) {
         var start = MathUtils.clamp(offset, 0, this.length);
         var end = MathUtils.clamp(offset + size, 0, this.length);
-        return this.parent.readAsync(this.start + start, (end - start));
+        return this.parent.readAsync(this.start + start, (end - start), buffer);
     };
     return HexSourceSlice;
 })();
 var AsyncDataView = (function () {
     function AsyncDataView(source) {
         this.source = source;
+        this.buffer = new Uint8Array(32);
+        this.dataview = new DataView(this.buffer.buffer);
     }
     Object.defineProperty(AsyncDataView.prototype, "length", {
         get: function () {
@@ -590,21 +592,25 @@ var AsyncDataView = (function () {
         configurable: true
     });
     AsyncDataView.prototype.getUint8ArrayAsync = function (offset, count) {
-        return this.source.readAsync(offset, count).then(function (data) {
+        var buffer = new Uint8Array(count);
+        return this.source.readAsync(offset, count, buffer).then(function (readcount) {
             var out = [];
-            for (var n = 0; n < data.length; n++)
-                out.push(data[n]);
+            for (var n = 0; n < readcount; n++)
+                out.push(buffer[n]);
             return out;
         });
     };
     AsyncDataView.prototype.getUint8Async = function (offset) {
-        return this.source.readAsync(offset, 1).then(function (data) { return new DataView(data.buffer).getUint8(0); });
+        var _this = this;
+        return this.source.readAsync(offset, 1, this.buffer).then(function (readcount) { return _this.dataview.getUint8(0); });
     };
     AsyncDataView.prototype.getUint16Async = function (offset, little) {
-        return this.source.readAsync(offset, 2).then(function (data) { return new DataView(data.buffer).getUint16(0, little); });
+        var _this = this;
+        return this.source.readAsync(offset, 2, this.buffer).then(function (readcount) { return _this.dataview.getUint16(0, little); });
     };
     AsyncDataView.prototype.getUint32Async = function (offset, little) {
-        return this.source.readAsync(offset, 4).then(function (data) { return new DataView(data.buffer).getUint32(0, little); });
+        var _this = this;
+        return this.source.readAsync(offset, 4, this.buffer).then(function (readcount) { return _this.dataview.getUint32(0, little); });
     };
     AsyncDataView.prototype.getSliceAsync = function (offset, count) {
         return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
@@ -624,14 +630,11 @@ var ArrayHexSource = (function () {
         enumerable: true,
         configurable: true
     });
-    ArrayHexSource.prototype.readAsync = function (offset, size) {
+    ArrayHexSource.prototype.readAsync = function (offset, size, buffer) {
         var size2 = Math.max(0, Math.min(size, this.length - offset));
-        //console.warn(offset, size, this.length, size2);
-        var out = new Uint8Array(size2);
-        for (var n = 0; n < out.length; n++)
-            out[n] = this.data[offset + n];
-        //return waitAsync(3000).then(() => { return out; });
-        return Promise.resolve(out);
+        for (var n = 0; n < size2; n++)
+            buffer[n] = this.data[offset + n];
+        return Promise.resolve(size2);
     };
     return ArrayHexSource;
 })();
@@ -646,17 +649,62 @@ var FileSource = (function () {
         enumerable: true,
         configurable: true
     });
-    FileSource.prototype.readAsync = function (offset, size) {
+    FileSource.prototype.readAsync = function (offset, size, buffer) {
         var _this = this;
         return new Promise(function (resolve, reject) {
             var reader = new FileReader();
             reader.onload = function (event) {
-                resolve(new Uint8Array(event.target.result));
+                var arraybuffer = event.target.result;
+                var indata = new Uint8Array(arraybuffer);
+                for (var n = 0; n < indata.length; n++)
+                    buffer[n] = indata[n];
+                resolve(indata.length);
             };
             reader.readAsArrayBuffer(_this.file.slice(offset, offset + size));
         });
     };
     return FileSource;
+})();
+var BufferedSource = (function () {
+    function BufferedSource(parent) {
+        this.parent = parent;
+        this.cachedStart = 0;
+        this.cachedEnd = 0;
+    }
+    Object.defineProperty(BufferedSource.prototype, "length", {
+        get: function () {
+            return this.parent.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    BufferedSource.prototype.readAsync = function (offset, size, buffer) {
+        var _this = this;
+        //return this.parent.readAsync(offset, size, buffer);
+        var start = offset;
+        var end = offset + size;
+        //console.log('cache', this.cachedStart, this.cachedEnd);
+        if (start >= this.cachedStart && end <= this.cachedEnd) {
+            for (var n = 0; n < size; n++)
+                buffer[n] = this.cachedData[(start - this.cachedStart) + n];
+            //console.log('cached!');
+            return Promise.resolve(size);
+        }
+        else {
+            //console.log('cache miss!');
+            var readStart = MathUtils.floorMultiple(offset, 0x1000);
+            var readEnd = Math.max(end, readStart + 0x1000);
+            var data = new Uint8Array(readEnd - readStart);
+            return this.parent.readAsync(readStart, readEnd - readStart, data).then(function (readcount) {
+                _this.cachedStart = readStart;
+                _this.cachedEnd = readEnd;
+                _this.cachedData = data;
+                return _this.readAsync(offset, size, buffer); // retry with cached data!
+            });
+        }
+        //console.log(offset, size);
+    };
+    return BufferedSource;
 })();
 var HexEditor = (function () {
     function HexEditor(element) {
@@ -900,12 +948,14 @@ var HexEditor = (function () {
     HexEditor.prototype.updateCellsAsync = function () {
         var _this = this;
         var source = this._source;
-        return source.readAsync(this.offset, this.columnCount * this.rows.length).then(function (data) {
+        var databuffer = new Uint8Array(this.columnCount * this.rows.length);
+        return source.readAsync(this.offset, databuffer.length, databuffer).then(function (readcount) {
+            var data = databuffer;
             _this.rows.forEach(function (row, index) {
                 row.head.value = _this.offset + index * 16;
-                row.enabled = row.head.enabled = ((index * 16) < data.length);
+                row.enabled = row.head.enabled = ((index * 16) < readcount);
                 row.cells.forEach(function (cell, offset) {
-                    if (cell.viewoffset < data.length) {
+                    if (cell.viewoffset < readcount) {
                         cell.value = data[cell.viewoffset];
                         cell.enabled = true;
                     }
@@ -923,9 +973,6 @@ var HexEditor = (function () {
     };
     HexEditor.prototype.globalToLocal = function (globaloffset) {
         return globaloffset - this.offset;
-    };
-    HexEditor.prototype.getDataAsync = function () {
-        return this._source.readAsync(0, this.source.length);
     };
     Object.defineProperty(HexEditor.prototype, "length", {
         get: function () {

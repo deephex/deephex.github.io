@@ -133,7 +133,8 @@ class AnalyzerMapperPlugins {
 
     static runAsync(type: AnalyzerType, editor:HexEditor) {
         console.info('AnalyzerMapperPlugins.runAsync()');
-        return editor.source.readAsync(0, 0x9000).then(data => {
+        var data = new Uint8Array(0x9000);
+        return editor.source.readAsync(0, 0x9000, data).then(readed => {
             type.name = String(type.name).toLowerCase();
 
             if (type.name == 'autodetect') {
@@ -197,8 +198,8 @@ class AnalyzerMapper {
     little = true;
     data:AsyncDataView;
 
-    constructor(public dataSource:HexSource, public node:AnalyzerMapperNode = null, public addoffset = 0) {
-        this.data = new AsyncDataView(dataSource);
+    constructor(public source:HexSource, public node:AnalyzerMapperNode = null, public addoffset = 0) {
+        this.data = new AsyncDataView(source);
         if (this.node == null) this.node = new AnalyzerMapperNode("root", null, addoffset, this.data.length);
     }
 
@@ -314,7 +315,7 @@ class AnalyzerMapper {
         });
     }
     subs<T>(name:string, count:number, callbackAsync?: (mapper:AnalyzerMapper) => Promise<T>) {
-        var sourceSlice = new HexSourceSlice(this.dataSource, this.offset, this.offset + count);
+        var sourceSlice = new HexSourceSlice(this.source, this.offset, this.offset + count);
 
         var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
         var mapper = new AnalyzerMapper(sourceSlice, subsnode, this.offset);

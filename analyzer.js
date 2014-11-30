@@ -192,7 +192,8 @@ var AnalyzerMapperPlugins = (function () {
     };
     AnalyzerMapperPlugins.runAsync = function (type, editor) {
         console.info('AnalyzerMapperPlugins.runAsync()');
-        return editor.source.readAsync(0, 0x9000).then(function (data) {
+        var data = new Uint8Array(0x9000);
+        return editor.source.readAsync(0, 0x9000, data).then(function (readed) {
             type.name = String(type.name).toLowerCase();
             if (type.name == 'autodetect') {
                 try {
@@ -235,10 +236,10 @@ var AnalyzerMapperPlugins = (function () {
     return AnalyzerMapperPlugins;
 })();
 var AnalyzerMapper = (function () {
-    function AnalyzerMapper(dataSource, node, addoffset) {
+    function AnalyzerMapper(source, node, addoffset) {
         if (node === void 0) { node = null; }
         if (addoffset === void 0) { addoffset = 0; }
-        this.dataSource = dataSource;
+        this.source = source;
         this.node = node;
         this.addoffset = addoffset;
         this.offset = 0;
@@ -247,7 +248,7 @@ var AnalyzerMapper = (function () {
         this.bitsavailable = 0;
         this.little = true;
         this.toffset = 0;
-        this.data = new AsyncDataView(dataSource);
+        this.data = new AsyncDataView(source);
         if (this.node == null)
             this.node = new AnalyzerMapperNode("root", null, addoffset, this.data.length);
     }
@@ -417,7 +418,7 @@ var AnalyzerMapper = (function () {
         });
     };
     AnalyzerMapper.prototype.subs = function (name, count, callbackAsync) {
-        var sourceSlice = new HexSourceSlice(this.dataSource, this.offset, this.offset + count);
+        var sourceSlice = new HexSourceSlice(this.source, this.offset, this.offset + count);
         var subsnode = new AnalyzerMapperNode(name, this.node, this.offset, count);
         var mapper = new AnalyzerMapper(sourceSlice, subsnode, this.offset);
         mapper.little = this.little;

@@ -31,7 +31,7 @@ var HexTools = (function () {
             e.stopImmediatePropagation();
             $(editor.element).removeClass('drag');
             var file = e.dataTransfer.files[0];
-            editor.source = new FileSource(file);
+            editor.source = new BufferedSource(new FileSource(file));
             $(outputelement).html('');
             _this.analyze(new AnalyzerType('autodetect'));
             return false;

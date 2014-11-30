@@ -36,7 +36,7 @@ class HexTools {
 
             var file = (<DragEvent>e).dataTransfer.files[0];
 
-            editor.source = new FileSource(file);
+            editor.source = new BufferedSource(new FileSource(file));
             $(outputelement).html('');
             this.analyze(new AnalyzerType('autodetect'));
 

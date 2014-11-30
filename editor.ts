@@ -336,40 +336,52 @@ class HexSelection {
 
 interface HexSource {
     length: number;
-    readAsync(offset:number, size:number):Promise<Uint8Array>;
+    readAsync(offset:number, size:number, buffer:Uint8Array):Promise<number>;
 }
 
 class HexSourceSlice implements HexSource {
     constructor(public parent:HexSource, public start:number, public end:number) {
-        this.start = MathUtils.clamp(this.start, 0, parent.length)
+        this.start = MathUtils.clamp(this.start, 0, parent.length);
         this.end = MathUtils.clamp(this.end, 0, parent.length)
     }
 
     get length():number { return this.end - this.start; }
 
-    readAsync(offset:number, size:number):Promise<Uint8Array> {
+    readAsync(offset:number, size:number, buffer:Uint8Array) {
         var start = MathUtils.clamp(offset, 0, this.length);
         var end = MathUtils.clamp(offset + size, 0, this.length);
-        return this.parent.readAsync(this.start + start, (end - start));
+        return this.parent.readAsync(this.start + start, (end - start), buffer);
     }
 }
 
 class AsyncDataView {
+    private buffer:Uint8Array;
+    private dataview:DataView;
+
     constructor(public source:HexSource) {
+        this.buffer = new Uint8Array(32);
+        this.dataview = new DataView(this.buffer.buffer);
     }
 
     get length() { return this.source.length; }
 
     getUint8ArrayAsync(offset:number, count:number) {
-        return this.source.readAsync(offset, count).then(data => {
+        var buffer = new Uint8Array(count);
+        return this.source.readAsync(offset, count, buffer).then(readcount => {
             var out = [];
-            for (var n = 0; n < data.length; n++) out.push(data[n]);
+            for (var n = 0; n < readcount; n++) out.push(buffer[n]);
             return out;
         });
     }
-    getUint8Async(offset:number) { return this.source.readAsync(offset, 1).then(data => new DataView(data.buffer).getUint8(0)); }
-    getUint16Async(offset:number, little?:boolean) { return this.source.readAsync(offset, 2).then(data => new DataView(data.buffer).getUint16(0, little)); }
-    getUint32Async(offset:number, little?:boolean) { return this.source.readAsync(offset, 4).then(data => new DataView(data.buffer).getUint32(0, little)); }
+    getUint8Async(offset:number) {
+        return this.source.readAsync(offset, 1, this.buffer).then(readcount => this.dataview.getUint8(0));
+    }
+    getUint16Async(offset:number, little?:boolean) {
+        return this.source.readAsync(offset, 2, this.buffer).then(readcount => this.dataview.getUint16(0, little));
+    }
+    getUint32Async(offset:number, little?:boolean) {
+        return this.source.readAsync(offset, 4, this.buffer).then(readcount => this.dataview.getUint32(0, little));
+    }
     getSliceAsync(offset:number, count:number) {
         return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
     }
@@ -383,13 +395,10 @@ class ArrayHexSource implements HexSource {
         return this.data.length;
     }
 
-    readAsync(offset:number, size:number) {
+    readAsync(offset:number, size:number, buffer:Uint8Array) {
         var size2 = Math.max(0, Math.min(size, this.length - offset));
-        //console.warn(offset, size, this.length, size2);
-        var out = new Uint8Array(size2);
-        for (var n = 0; n < out.length; n++) out[n] = this.data[offset + n];
-        //return waitAsync(3000).then(() => { return out; });
-        return Promise.resolve(out);
+        for (var n = 0; n < size2; n++) buffer[n] = this.data[offset + n];
+        return Promise.resolve(size2);
     }
 }
 
@@ -399,16 +408,53 @@ class FileSource implements HexSource {
 
     get length() { return this.file.size; }
 
-    readAsync(offset:number, size:number):Promise<Uint8Array> {
+    readAsync(offset:number, size:number, buffer:Uint8Array) {
         return new Promise((resolve, reject) => {
             var reader = new FileReader();
             reader.onload = (event) => {
-                resolve(new Uint8Array((<any>event.target).result));
+                var arraybuffer = (<any>event.target).result;
+                var indata = new Uint8Array(arraybuffer);
+                for (var n = 0; n < indata.length; n++) buffer[n] = indata[n];
+                resolve(indata.length);
             };
             reader.readAsArrayBuffer(this.file.slice(offset, offset + size));
         });
     }
+}
 
+class BufferedSource implements HexSource {
+    constructor(public parent:HexSource) {
+    }
+
+    get length() { return this.parent.length; }
+
+    cachedData:Uint8Array;
+    cachedStart = 0;
+    cachedEnd = 0;
+
+    readAsync(offset:number, size:number, buffer:Uint8Array) {
+        //return this.parent.readAsync(offset, size, buffer);
+        var start = offset;
+        var end = offset + size;
+        //console.log('cache', this.cachedStart, this.cachedEnd);
+        if (start >= this.cachedStart && end <= this.cachedEnd) {
+            for (var n = 0; n < size; n++) buffer[n] = this.cachedData[(start - this.cachedStart) + n];
+            //console.log('cached!');
+            return Promise.resolve(size);
+        } else {
+            //console.log('cache miss!');
+            var readStart = MathUtils.floorMultiple(offset, 0x1000);
+            var readEnd = Math.max(end, readStart + 0x1000);
+            var data = new Uint8Array(readEnd - readStart);
+            return this.parent.readAsync(readStart, readEnd - readStart, data).then(readcount => {
+                this.cachedStart = readStart;
+                this.cachedEnd = readEnd;
+                this.cachedData = data;
+                return this.readAsync(offset, size, buffer); // retry with cached data!
+            });
+        }
+        //console.log(offset, size);
+    }
 }
 
 class HexEditor {
@@ -481,12 +527,14 @@ class HexEditor {
 
     updateCellsAsync() {
         var source = this._source;
-        return source.readAsync(this.offset, this.columnCount * this.rows.length).then((data) => {
+        var databuffer = new Uint8Array(this.columnCount * this.rows.length);
+        return source.readAsync(this.offset, databuffer.length, databuffer).then(readcount => {
+            var data = databuffer;
             this.rows.forEach((row, index) => {
                 row.head.value = this.offset + index * 16;
-                row.enabled = row.head.enabled = ((index * 16) < data.length);
+                row.enabled = row.head.enabled = ((index * 16) < readcount);
                 row.cells.forEach((cell, offset) => {
-                    if (cell.viewoffset < data.length) {
+                    if (cell.viewoffset < readcount) {
                         cell.value = data[cell.viewoffset];
                         cell.enabled = true;
                     } else {
@@ -505,10 +553,6 @@ class HexEditor {
 
     globalToLocal(globaloffset:number) {
         return globaloffset - this.offset;
-    }
-
-    getDataAsync() {
-        return this._source.readAsync(0, this.source.length);
     }
 
     get length() { return this.source.length; }
