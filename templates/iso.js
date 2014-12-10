@@ -5,21 +5,87 @@
 // http://www.gzip.org/zlib/rfc-deflate.html
 
 var CIsoStream = (function () {
-    function CIsoStream(source, totalBytes, numberOfBlocks) {
+    /**
+     *
+     * @param source HexSource
+     * @param totalBytes Number
+     * @param blockSize Number
+     * @param numberOfBlocks Number
+     * @constructor
+     */
+    function CIsoStream(source, totalBytes, blockSize, numberOfBlocks) {
         this.source = source;
         this.length = totalBytes;
+        this.blockSize = blockSize;
         this.numberOfBlocks = numberOfBlocks;
     }
-    CIsoStream.prototype.readAsync = function (offset, size, buffer) {
-        return this.source.readAsync(offset, size, buffer);
+
+    /**
+     *
+     * @param offset Number
+     * @param wantedSize Number
+     * @param outbuffer Uint8Array
+     * @returns {Promise<number>}
+     */
+    CIsoStream.prototype.readAsync = function (offset, wantedSize, outbuffer) {
+        var _this = this;
+        var sectorStart = Math.floor(offset / _this.blockSize);
+        var sectorEnd = Math.floor((offset + wantedSize - 1) / _this.blockSize);
+        var offsetInSector = offset % _this.blockSize;
+        var rangeInfoData = new Uint8Array(8);
+        var chunks = new Uint32Array(rangeInfoData.buffer);
+
+        if (sectorEnd != sectorStart) {
+            var sectorsToRead = [];
+            for (var n = sectorStart; n <= sectorEnd; n++) sectorsToRead.push(n);
+            var promise = Promise.resolve(0);
+            var writeoffset = 0;
+            var tempBuffer = new Uint8Array(_this.blockSize);
+            console.log('--------------', sectorStart, sectorEnd);
+            var toreadstart = offset;
+            var lefttoread = wantedSize;
+            sectorsToRead.forEach(function(sector, index) {
+                console.log('sector read: ' + sector);
+                promise = promise.then(function(readed) {
+                    if (readed >= wantedSize) return readed;
+
+                    var toreadendIdeally = toreadstart + lefttoread;
+                    var toreadendSector = MathUtils.ceilMultiple(toreadstart, _this.blockSize);
+                    var toreadEnd = Math.min(toreadendIdeally, toreadendSector);
+                    var toreadSize = toreadEnd - toreadstart;
+
+                    return this.readAsync(toreadstart, toreadSize, tempBuffer).then(function(readed) {
+                        for (var n = 0; n < readed; n++) outbuffer[writeoffset + n] = tempBuffer[n];
+                        writeoffset += readed;
+                        return writeoffset;
+                    });
+                });
+            });
+            return promise;
+        }
+
+        return _this.source.readAsync(24 + sectorStart * 4, 8, rangeInfoData).then(function(readed1) {
+            var start = chunks[0] & 0x7FFFFFFF;
+            var end = chunks[1] & 0x7FFFFFFF;
+            var compressedLength = end - start;
+            var compressed = (chunks[0] >>> 31) == 0;
+            var compressedBuffer = new Uint8Array(compressedLength);
+            return _this.source.readAsync(start, compressedLength, compressedBuffer).then(function(readed2) {
+                var uncompressedBuffer = compressed ? Inflater.inflateRaw(compressedBuffer) : compressedBuffer;
+                //console.log(start, end, compressedLength, compressed);
+                var readSize = Math.min(uncompressedBuffer.length, wantedSize);
+                for (var n = 0; n < readSize; n++) outbuffer[n] = uncompressedBuffer[n + offsetInSector];
+                return readSize;
+            });
+        });
     };
+
     //readAsync(offset:number, size:number, buffer:Uint8Array):Promise<number>;
     CIsoStream.prototype.toString = function () {
-        return this.source + ':' + this.totalBytes;
+        return this.source + ':' + this.length;
     };
     return CIsoStream;
 })();
-
 
 AnalyzerMapperPlugins.register(
     'ciso',
@@ -39,8 +105,8 @@ AnalyzerMapperPlugins.register(
         var numberOfBlocks = Math.floor(totalBytes / blockSize);
         yield(m.chunk('blocks', numberOfBlocks * 4));
 
-        m.value = new HexChunk(new CIsoStream(m.source, totalBytes, numberOfBlocks), new AnalyzerType('iso'));
-        //m.value = new HexChunk(m.source, new AnalyzerType('iso'));
+        m.value = new HexChunk(new CIsoStream(m.source, totalBytes, blockSize, numberOfBlocks), new AnalyzerType('iso'));
+        //m.value = new HexChunk(new BufferedSource(new CIsoStream(m.source, totalBytes, blockSize, numberOfBlocks)), new AnalyzerType('iso'));
     })
 );
 
