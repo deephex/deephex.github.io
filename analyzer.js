@@ -199,7 +199,7 @@ var AnalyzerMapperPlugins = (function () {
                 try {
                     var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map(function (v, k) {
-                        return { name: v.name, priority: v.detect(dataview) };
+                        return { name: v.name, priority: v.detect(dataview, editor.source.name) };
                     }), function (v) { return v.priority; }).reverse();
                     console.log(JSON.stringify(items));
                     var item = items[0];
@@ -434,16 +434,18 @@ var AnalyzerMapper = (function () {
             return Promise.resolve(mapper);
         }
     };
-    AnalyzerMapper.prototype.readSlice = function (count) {
+    AnalyzerMapper.prototype.readSlice = function (count, filename) {
+        if (filename === void 0) { filename = 'unknown.bin'; }
         var offset = this.offset;
         this.offset += count;
-        return this.data.getSliceAsync(offset, count);
+        return this.data.getSliceAsync(offset, count, filename);
     };
-    AnalyzerMapper.prototype.chunk = function (name, count, type, representer) {
+    AnalyzerMapper.prototype.chunk = function (name, count, type, representer, filename) {
         var _this = this;
         if (type === void 0) { type = null; }
+        if (filename === void 0) { filename = "unknown.bin"; }
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
-        return this.readSlice(count).then(function (data) {
+        return this.readSlice(count, filename).then(function (data) {
             element.value = new HexChunk(data, type);
             _this.node.elements.push(element);
             return element;

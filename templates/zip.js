@@ -21,7 +21,9 @@ AnalyzerMapperPlugins.register(
     function (data) {
         return (String.fromCharCode(data.getUint8(0), data.getUint8(1)) == 'PK') ? 1 : 0;
     },
+    /** @param m AnalyzerMapper */
     async(function*(m, type) {
+        /** @var m AnalyzerMapper */
         m.node.name = 'zip';
         m.little = true;
         var entrycount = 0;
@@ -99,7 +101,13 @@ AnalyzerMapperPlugins.register(
                         var extrafield_length = yield(m.u16('extrafield_length'));
                         var filename = yield(m.str('filename', filename_length));
                         yield(m.subs('extra', extrafield_length));
-                        yield(m.chunk('content', compressed_size, new AnalyzerType(CompressionMethodEnumValues[compression_method], ['autodetect'])));
+                        yield(m.chunk(
+                            'content',
+                            compressed_size,
+                            new AnalyzerType(CompressionMethodEnumValues[compression_method], ['autodetect']),
+                            null,
+                            filename
+                        ));
                         return filename;
                         break;
                     case 0x0605:

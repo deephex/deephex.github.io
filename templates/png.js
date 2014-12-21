@@ -47,7 +47,7 @@ AnalyzerMapperPlugins.register(
 );
 AnalyzerMapperPlugins.register(
     'png',
-    function (data) {
+    function (data, filename) {
         if (data.getUint8(0) != 0x89) return 0;
         return (String.fromCharCode(data.getUint8(1), data.getUint8(2), data.getUint8(3)) == 'PNG') ? 1 : 0;
     },

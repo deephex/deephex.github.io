@@ -114,7 +114,7 @@ class AnalyzerMapperNode extends AnalyzerMapperElement {
 }
 
 class AnalyzerMapperPlugin {
-    constructor(public name:string, public detect:(data:DataView) => number, public analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
+    constructor(public name:string, public detect:(data:DataView, filename:string) => number, public analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
     }
 }
 
@@ -127,7 +127,7 @@ class AnalyzerMapperPlugins {
         this.templates[name.toLowerCase()] = plugin;
     }
 
-    static register(name:string, detect:(data:DataView) => number, analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
+    static register(name:string, detect:(data:DataView, filename:String) => number, analyzeAsync:(mapper:AnalyzerMapper, type:AnalyzerType) => Promise<any>) {
         return this.registerPlugin(new AnalyzerMapperPlugin(name, detect, analyzeAsync));
     }
 
@@ -141,7 +141,7 @@ class AnalyzerMapperPlugins {
                 try {
                     var dataview = new DataView(data.buffer);
                     var items = _.sortBy(_.values(AnalyzerMapperPlugins.templates).map((v, k) => {
-                        return { name: v.name, priority: v.detect(dataview) };
+                        return { name: v.name, priority: v.detect(dataview, editor.source.name) };
                     }), v => v.priority).reverse();
 
                     console.log(JSON.stringify(items));
@@ -332,16 +332,16 @@ class AnalyzerMapper {
         }
     }
 
-    readSlice(count:number) {
+    readSlice(count:number, filename:string = 'unknown.bin') {
         var offset = this.offset;
         this.offset += count;
-        return this.data.getSliceAsync(offset, count);
+        return this.data.getSliceAsync(offset, count, filename);
     }
 
-    chunk(name:string, count:number, type:AnalyzerType = null, representer?: ValueRepresenter) {
+    chunk(name:string, count:number, type:AnalyzerType = null, representer?: ValueRepresenter, filename = "unknown.bin") {
         var element = new AnalyzerMapperElement(name, 'chunk', this.globaloffset, 0, count * 8, null, representer);
 
-        return this.readSlice(count).then(data => {
+        return this.readSlice(count, filename).then(data => {
             element.value = new HexChunk(data, type);
             this.node.elements.push(element);
             return element;

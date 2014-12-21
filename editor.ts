@@ -336,11 +336,13 @@ class HexSelection {
 
 interface HexSource {
     length: number;
+    name: string;
     readAsync(offset:number, size:number, buffer:Uint8Array):Promise<number>;
 }
 
 class HexSourceSlice implements HexSource {
-    constructor(public parent:HexSource, public start:number, public end:number) {
+    constructor(public parent:HexSource, public start:number, public end:number, public name:string = null) {
+        if (name == null) this.name = this.parent.name;
         this.start = MathUtils.clamp(this.start, 0, parent.length);
         this.end = MathUtils.clamp(this.end, 0, parent.length)
     }
@@ -382,13 +384,13 @@ class AsyncDataView {
     getUint32Async(offset:number, little?:boolean) {
         return this.source.readAsync(offset, 4, this.buffer).then(readcount => this.dataview.getUint32(0, little));
     }
-    getSliceAsync(offset:number, count:number) {
-        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
+    getSliceAsync(offset:number, count:number, filename:string = 'unknown.bin') {
+        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count, filename));
     }
 }
 
 class ArrayHexSource implements HexSource {
-    constructor(public data:Uint8Array, private delay = 100) {
+    constructor(public data:Uint8Array, private delay = 100, public name = "hexarray.bin") {
     }
 
     get length() {
@@ -405,6 +407,8 @@ class ArrayHexSource implements HexSource {
 class FileSource implements HexSource {
     constructor(public file:File) {
     }
+
+    get name() { return this.file.name; }
 
     get length() { return this.file.size; }
 
@@ -426,6 +430,7 @@ class BufferedSource implements HexSource {
     constructor(public parent:HexSource) {
     }
 
+    get name() { return this.parent.name; }
     get length() { return this.parent.length; }
 
     cachedData:Uint8Array;

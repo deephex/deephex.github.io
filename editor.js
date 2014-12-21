@@ -557,10 +557,14 @@ var HexSelection = (function () {
     return HexSelection;
 })();
 var HexSourceSlice = (function () {
-    function HexSourceSlice(parent, start, end) {
+    function HexSourceSlice(parent, start, end, name) {
+        if (name === void 0) { name = null; }
         this.parent = parent;
         this.start = start;
         this.end = end;
+        this.name = name;
+        if (name == null)
+            this.name = this.parent.name;
         this.start = MathUtils.clamp(this.start, 0, parent.length);
         this.end = MathUtils.clamp(this.end, 0, parent.length);
     }
@@ -612,16 +616,19 @@ var AsyncDataView = (function () {
         var _this = this;
         return this.source.readAsync(offset, 4, this.buffer).then(function (readcount) { return _this.dataview.getUint32(0, little); });
     };
-    AsyncDataView.prototype.getSliceAsync = function (offset, count) {
-        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count));
+    AsyncDataView.prototype.getSliceAsync = function (offset, count, filename) {
+        if (filename === void 0) { filename = 'unknown.bin'; }
+        return Promise.resolve(new HexSourceSlice(this.source, offset, offset + count, filename));
     };
     return AsyncDataView;
 })();
 var ArrayHexSource = (function () {
-    function ArrayHexSource(data, delay) {
+    function ArrayHexSource(data, delay, name) {
         if (delay === void 0) { delay = 100; }
+        if (name === void 0) { name = "hexarray.bin"; }
         this.data = data;
         this.delay = delay;
+        this.name = name;
     }
     Object.defineProperty(ArrayHexSource.prototype, "length", {
         get: function () {
@@ -642,6 +649,13 @@ var FileSource = (function () {
     function FileSource(file) {
         this.file = file;
     }
+    Object.defineProperty(FileSource.prototype, "name", {
+        get: function () {
+            return this.file.name;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(FileSource.prototype, "length", {
         get: function () {
             return this.file.size;
@@ -671,6 +685,13 @@ var BufferedSource = (function () {
         this.cachedStart = 0;
         this.cachedEnd = 0;
     }
+    Object.defineProperty(BufferedSource.prototype, "name", {
+        get: function () {
+            return this.parent.name;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(BufferedSource.prototype, "length", {
         get: function () {
             return this.parent.length;
