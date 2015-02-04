@@ -32,6 +32,40 @@ AnalyzerMapperPlugins.register(
     })
 );
 AnalyzerMapperPlugins.register(
+    'gzip',
+    function (data) {
+        return ((data.getUint8(0) == 0x1F) && (data.getUint8(1) == 0x8B)) ? 1 : 0;
+    },
+    async(function*(m, type) {
+        // https://www.ietf.org/rfc/rfc1952.txt
+        m.node.name = 'gzip';
+        var ID1 = yield(m.u8('ID1'));
+        var ID2 = yield(m.u8('ID2'));
+        yield(m.u8('compression_method', EnumRepresenter({
+            0: 'reserved', 1: 'reserved', 2: 'reserved', 3: 'reserved',
+            4: 'reserved', 5: 'reserved', 6: 'reserved', 7: 'reserved',
+            8: 'deflate',
+        })));
+    
+        /*
+        var hasDict = false;
+        yield(m.struct('CMF', async(function*() {
+            yield(m.bits('window_size', 4, new ValueRepresenter(function (v) {
+                return ((1 << (v + 8)) / 1024) + 'KB';
+            })));
+        })));
+        yield(m.struct('FLG', async(function*() {
+            yield(m.bits('fcheck', 5, BinRepresenter));
+            hasDict = yield(m.bitBool('fdic'));
+            yield(m.bits('flevel', 2, EnumRepresenter({ 0: 'fastest', 1: 'fast', 2: 'default', 3: 'maximum' })));
+        })));
+        if (hasDict) throw new Error("Not supported feed dict");
+        var chunk = yield(m.chunk('data', m.available, new AnalyzerType('deflate', type.arguments)));
+        m.value = chunk.value;
+        */
+    })
+);
+AnalyzerMapperPlugins.register(
     'deflate',
     function (data) {
         return 0.1;

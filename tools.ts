@@ -43,7 +43,7 @@ class HexTools {
             return false;
         };
 
-        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
+        $(element).append($('<select>' + ['', 'autodetect', 'gzip', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(v => '<option>' + v + '</option>').join('') + '</select>').change((e) => {
             var value = $(e.target).val();
             this.analyze(new AnalyzerType(value));
             $(e.target).val('');

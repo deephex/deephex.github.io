@@ -36,7 +36,7 @@ var HexTools = (function () {
             _this.analyze(new AnalyzerType('autodetect'));
             return false;
         };
-        $(element).append($('<select>' + ['', 'autodetect', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
+        $(element).append($('<select>' + ['', 'autodetect', 'gzip', 'png', 'zip', 'swf', 'deflate', 'zlib'].map(function (v) { return '<option>' + v + '</option>'; }).join('') + '</select>').change(function (e) {
             var value = $(e.target).val();
             _this.analyze(new AnalyzerType(value));
             $(e.target).val('');
