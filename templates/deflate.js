@@ -46,23 +46,48 @@ AnalyzerMapperPlugins.register(
             4: 'reserved', 5: 'reserved', 6: 'reserved', 7: 'reserved',
             8: 'deflate',
         })));
-    
-        /*
-        var hasDict = false;
-        yield(m.struct('CMF', async(function*() {
-            yield(m.bits('window_size', 4, new ValueRepresenter(function (v) {
-                return ((1 << (v + 8)) / 1024) + 'KB';
-            })));
-        })));
+
+        var ftext = false;
+        var fhcrc = false;
+        var fextra = false;
+        var fname = false;
+        var fcomment = false;
+
         yield(m.struct('FLG', async(function*() {
-            yield(m.bits('fcheck', 5, BinRepresenter));
-            hasDict = yield(m.bitBool('fdic'));
-            yield(m.bits('flevel', 2, EnumRepresenter({ 0: 'fastest', 1: 'fast', 2: 'default', 3: 'maximum' })));
+            ftext = yield(m.bitBool('ftext'));
+            fhcrc = yield(m.bitBool('fhcrc'));
+            fextra = yield(m.bitBool('fextra'));
+            fname = yield(m.bitBool('fname'));
+            fcomment = yield(m.bitBool('fcomment'));
+            yield(m.bitBool('reserved'));
+            yield(m.bitBool('reserved'));
+            yield(m.bitBool('reserved'));
         })));
-        if (hasDict) throw new Error("Not supported feed dict");
-        var chunk = yield(m.chunk('data', m.available, new AnalyzerType('deflate', type.arguments)));
-        m.value = chunk.value;
-        */
+
+        var MTIME = yield(m.u32('MTIME'));
+        var XFL = yield(m.u8('XFL'));
+        var OS = yield(m.u8('OS'));
+
+        if (fextra) {
+            var XLEN = yield(m.u16('XLEN'));
+            var EXTRA = yield(m.chunk('EXTRA', XLEN));
+        }
+
+        if (fname) {
+            var name = yield(m.strz('name'));
+        }
+
+        if (fcomment) {
+            var comment = yield(m.strz('comment'));
+        }
+
+        if (fhcrc) {
+            var CRC16 = yield(m.u16('CRC16'));
+        }
+
+        var chunk = yield(m.chunk('data', m.available - 8, new AnalyzerType('deflate', type.arguments)));
+        var CRC32 = yield(m.u32('CRC32'));
+        var size = yield(m.u32('size'));
     })
 );
 AnalyzerMapperPlugins.register(
